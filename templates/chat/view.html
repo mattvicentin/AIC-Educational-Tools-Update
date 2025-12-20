@@ -2,6 +2,7 @@
 
 {% block title %}Chat - {{ chat.title }}{% endblock %}
 {% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-panel.css') }}?v=1.0">
 <style>
   /* Minimal Focus Mode: hides chrome to maximize chat space */
   body.focus-mode > header, body.focus-mode header { display: none !important; }
@@ -685,6 +686,9 @@
     </div>
 </div>
 
+<!-- Quiz Panel Component -->
+{% include 'components/quiz/quiz_panel.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -694,5 +698,6 @@
     <script src="{{ url_for('static', filename='js/pin-chat.js') }}?v=2025-12-04"></script>
     <script src="{{ url_for('static', filename='js/library-tool.js') }}"></script>
     <script src="{{ url_for('static', filename='js/tools-menu.js') }}?v=1.1"></script>
+    <script src="{{ url_for('static', filename='js/quiz-tool.js') }}?v=1.0"></script>
 {% endblock %}
 <!-- PIN OPACITY FIX DEPLOYED 2025-12-01T03:15Z -->

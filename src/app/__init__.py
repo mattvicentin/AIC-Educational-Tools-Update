@@ -77,6 +77,95 @@ def create_app(config_name=None):
     with app.app_context():
         try:
             db.create_all()
+            
+            # Manually create document tables if they don't exist (SQLite compatibility)
+            try:
+                from src.models import Document, DocumentChunk
+                Document.query.first()  # Test if table exists
+            except Exception:
+                # Table doesn't exist, create it manually
+                try:
+                    is_postgres = 'postgresql' in str(db.engine.url)
+                    with db.engine.connect() as conn:
+                        # Create document table
+                        if is_postgres:
+                            conn.execute(db.text("""
+                                CREATE TABLE IF NOT EXISTS document (
+                                    id SERIAL PRIMARY KEY,
+                                    file_id VARCHAR(255) NOT NULL,
+                                    name VARCHAR(500) NOT NULL,
+                                    full_text TEXT,
+                                    file_size INTEGER NOT NULL DEFAULT 0,
+                                    room_id INTEGER NOT NULL REFERENCES room(id) ON DELETE CASCADE,
+                                    uploaded_by INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+                                    uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                    summary TEXT
+                                )
+                            """))
+                        else:
+                            conn.execute(db.text("""
+                                CREATE TABLE IF NOT EXISTS document (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    file_id VARCHAR(255) NOT NULL,
+                                    name VARCHAR(500) NOT NULL,
+                                    full_text TEXT,
+                                    file_size INTEGER NOT NULL DEFAULT 0,
+                                    room_id INTEGER NOT NULL REFERENCES room(id) ON DELETE CASCADE,
+                                    uploaded_by INTEGER REFERENCES user(id) ON DELETE SET NULL,
+                                    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                    summary TEXT
+                                )
+                            """))
+                        conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_file_id ON document(file_id)"))
+                        conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_room_id ON document(room_id)"))
+                        conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_uploaded_at ON document(uploaded_at)"))
+                        conn.execute(db.text("CREATE UNIQUE INDEX IF NOT EXISTS ix_document_room_file_unique ON document(room_id, file_id)"))
+                        conn.commit()
+                    
+                    # Create document_chunk table
+                    try:
+                        DocumentChunk.query.first()
+                    except Exception:
+                        with db.engine.connect() as conn:
+                            if is_postgres:
+                                conn.execute(db.text("""
+                                    CREATE TABLE IF NOT EXISTS document_chunk (
+                                        id SERIAL PRIMARY KEY,
+                                        document_id INTEGER NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+                                        chunk_index INTEGER NOT NULL,
+                                        chunk_text TEXT NOT NULL,
+                                        start_char INTEGER,
+                                        end_char INTEGER,
+                                        token_count INTEGER,
+                                        search_vector TSVECTOR,
+                                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        UNIQUE(document_id, chunk_index)
+                                    )
+                                """))
+                                try:
+                                    conn.execute(db.text("CREATE INDEX IF NOT EXISTS idx_chunk_search_vector ON document_chunk USING gin(search_vector)"))
+                                except:
+                                    pass
+                            else:
+                                conn.execute(db.text("""
+                                    CREATE TABLE IF NOT EXISTS document_chunk (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        document_id INTEGER NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+                                        chunk_index INTEGER NOT NULL,
+                                        chunk_text TEXT NOT NULL,
+                                        start_char INTEGER,
+                                        end_char INTEGER,
+                                        token_count INTEGER,
+                                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        UNIQUE(document_id, chunk_index)
+                                    )
+                                """))
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_chunk_document_id ON document_chunk(document_id)"))
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_chunk_doc_created_at ON document_chunk(document_id, created_at)"))
+                            conn.commit()
+                except Exception as doc_error:
+                    app.logger.warning(f"Could not create document tables: {doc_error}")
+            
             app.config["DB_INIT_STATUS"] = "success"
             app.logger.info("✅ Database tables initialized successfully")
         except Exception as e:
@@ -195,6 +284,9 @@ def create_app(config_name=None):
     
     # Library Tool integration (document upload and search)
     from src.app.library import library
+    
+    # Quiz Tool integration
+    from src.app.quiz import quiz
 
     app.register_blueprint(auth, url_prefix="/auth")
     app.register_blueprint(chat, url_prefix="/chat")
@@ -211,6 +303,9 @@ def create_app(config_name=None):
     
     # Library Tool endpoints
     app.register_blueprint(library, url_prefix="/api/library")
+    
+    # Quiz Tool endpoints
+    app.register_blueprint(quiz, url_prefix="/api/quiz")
     
     # Dev API (experimental endpoints)
     app.register_blueprint(card_view_api)  # url_prefix set in blueprint

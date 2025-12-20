@@ -251,17 +251,19 @@
     function handleToolSelection(tool) {
         console.log('Tool selected:', tool);
         
-        // TODO: Implement tool-specific functionality
-        // For now, just log the selection
-        // This will be expanded based on requirements
-        
-        // Example: Could insert text into the message input
-        const messageInput = document.getElementById('message-input');
-        if (messageInput) {
-            // You could insert a command or trigger a modal here
-            // messageInput.value = `Create ${tool}...`;
-            // messageInput.focus();
+        // Handle quiz tool
+        if (tool === 'quiz') {
+            if (window.quizTool && typeof window.quizTool.open === 'function') {
+                window.quizTool.open();
+            } else {
+                console.warn('Quiz tool not available');
+            }
+            return;
         }
+        
+        // TODO: Implement other tools (flashcards, mindmap, narrative)
+        // For now, just log the selection
+        console.log(`Tool "${tool}" not yet implemented`);
     }
 
     // Initialize on DOM ready

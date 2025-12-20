@@ -468,6 +468,121 @@ def run_production_migrations(app):
                         print("✓ card_comment table created manually")
                     except Exception as create_error:
                         print(f"❌ Failed to create card_comment table: {create_error}")
+                
+                # CRITICAL: Manually create document tables (for SQLite compatibility)
+                try:
+                    from src.models import Document, DocumentChunk
+                    Document.query.first()  # Test if table exists
+                    print("✓ document table exists")
+                except Exception:
+                    print("⚠️ document table missing, creating manually...")
+                    try:
+                        # Detect if PostgreSQL or SQLite
+                        is_postgres = 'postgresql' in str(db.engine.url)
+                        
+                        with db.engine.connect() as conn:
+                            # Create document table
+                            if is_postgres:
+                                conn.execute(db.text("""
+                                    CREATE TABLE IF NOT EXISTS document (
+                                        id SERIAL PRIMARY KEY,
+                                        file_id VARCHAR(255) NOT NULL,
+                                        name VARCHAR(500) NOT NULL,
+                                        full_text TEXT,
+                                        file_size INTEGER NOT NULL DEFAULT 0,
+                                        room_id INTEGER NOT NULL REFERENCES room(id) ON DELETE CASCADE,
+                                        uploaded_by INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+                                        uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        summary TEXT
+                                    )
+                                """))
+                            else:
+                                # SQLite version
+                                conn.execute(db.text("""
+                                    CREATE TABLE IF NOT EXISTS document (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        file_id VARCHAR(255) NOT NULL,
+                                        name VARCHAR(500) NOT NULL,
+                                        full_text TEXT,
+                                        file_size INTEGER NOT NULL DEFAULT 0,
+                                        room_id INTEGER NOT NULL REFERENCES room(id) ON DELETE CASCADE,
+                                        uploaded_by INTEGER REFERENCES user(id) ON DELETE SET NULL,
+                                        uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        summary TEXT
+                                    )
+                                """))
+                            
+                            # Create indexes
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_file_id ON document(file_id)"))
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_room_id ON document(room_id)"))
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_uploaded_at ON document(uploaded_at)"))
+                            
+                            if is_postgres:
+                                conn.execute(db.text("CREATE UNIQUE INDEX IF NOT EXISTS ix_document_room_file_unique ON document(room_id, file_id)"))
+                            else:
+                                conn.execute(db.text("CREATE UNIQUE INDEX IF NOT EXISTS ix_document_room_file_unique ON document(room_id, file_id)"))
+                            
+                            conn.commit()
+                        print("✓ document table created manually")
+                    except Exception as create_error:
+                        print(f"❌ Failed to create document table: {create_error}")
+                
+                # Create document_chunk table
+                try:
+                    from src.models import DocumentChunk
+                    DocumentChunk.query.first()  # Test if table exists
+                    print("✓ document_chunk table exists")
+                except Exception:
+                    print("⚠️ document_chunk table missing, creating manually...")
+                    try:
+                        is_postgres = 'postgresql' in str(db.engine.url)
+                        
+                        with db.engine.connect() as conn:
+                            if is_postgres:
+                                # PostgreSQL version with TSVECTOR
+                                conn.execute(db.text("""
+                                    CREATE TABLE IF NOT EXISTS document_chunk (
+                                        id SERIAL PRIMARY KEY,
+                                        document_id INTEGER NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+                                        chunk_index INTEGER NOT NULL,
+                                        chunk_text TEXT NOT NULL,
+                                        start_char INTEGER,
+                                        end_char INTEGER,
+                                        token_count INTEGER,
+                                        search_vector TSVECTOR,
+                                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        UNIQUE(document_id, chunk_index)
+                                    )
+                                """))
+                                # Create GIN index for search_vector (PostgreSQL only)
+                                try:
+                                    conn.execute(db.text("CREATE INDEX IF NOT EXISTS idx_chunk_search_vector ON document_chunk USING gin(search_vector)"))
+                                except:
+                                    pass  # Index might already exist
+                            else:
+                                # SQLite version (no TSVECTOR)
+                                conn.execute(db.text("""
+                                    CREATE TABLE IF NOT EXISTS document_chunk (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        document_id INTEGER NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+                                        chunk_index INTEGER NOT NULL,
+                                        chunk_text TEXT NOT NULL,
+                                        start_char INTEGER,
+                                        end_char INTEGER,
+                                        token_count INTEGER,
+                                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        UNIQUE(document_id, chunk_index)
+                                    )
+                                """))
+                            
+                            # Create indexes
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_chunk_document_id ON document_chunk(document_id)"))
+                            conn.execute(db.text("CREATE INDEX IF NOT EXISTS ix_document_chunk_doc_created_at ON document_chunk(document_id, created_at)"))
+                            
+                            conn.commit()
+                        print("✓ document_chunk table created manually")
+                    except Exception as create_error:
+                        print(f"❌ Failed to create document_chunk table: {create_error}")
         except Exception as e:
             print(f"Table creation warning: {e}")
             print("Continuing with app startup...")

@@ -10,7 +10,7 @@ Document storage models for Railway PostgreSQL using SQLAlchemy ORM
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Index, func, text
+from sqlalchemy import Index, func, text, String
 from sqlalchemy.dialects import postgresql
 from src.app import db
 from typing import Optional
@@ -66,8 +66,8 @@ class DocumentChunk(db.Model):
     """Stores document chunks with Full-Text Search support."""
     
     __tablename__ = 'document_chunk'
+    # Note: GIN index on search_vector is PostgreSQL-specific, created manually in main.py
     __table_args__ = (
-        Index('idx_chunk_search_vector', 'search_vector', postgresql_using='gin'),
         Index('ix_document_chunk_doc_created_at', 'document_id', 'created_at'),
         {'extend_existing': True}
     )
@@ -85,9 +85,10 @@ class DocumentChunk(db.Model):
     end_char = db.Column(db.Integer, nullable=True)
     token_count = db.Column(db.Integer, nullable=True)
     
-    # Full-text search vector (auto-generated via trigger)
+    # Full-text search vector (TSVECTOR for PostgreSQL, TEXT/VARCHAR for SQLite)
+    # Using String() for SQLite compatibility - TSVECTOR handled in manual table creation
     search_vector = db.Column(
-        postgresql.TSVECTOR(),  # Proper PostgreSQL TSVECTOR type
+        String(),  # SQLite-compatible default
         nullable=True
     )
     
