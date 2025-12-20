@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Flask
+instance/
+*.db
+*.sqlite
+
+# Environment variables
+.env
+.env.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+app.log
+
+# Google Service Account
+service-account-key.json
+*.json
+
+# Environment backups
+.env.backup
+.env.local 
+
+# Archive directories
+archive/
+phase2_backup_*/
+
+# Backup files
+*.backup
+*.backup-*
+*.bak
+*.bak[0-9]
+*.bak[0-9][0-9]
+
+# Debug files
+debug/
+code_with_lines.txt
+scroll_debug_bundle.txt
+
+# Test directories (keep structure but ignore temp files)
+tests/*.tmp
+tests/*.log
+
+# Script directories
+scripts/*.tmp
+scripts/*.log
+
+# Production data exports (NEVER commit)
+*.csv
+*_sample.csv
+*_export.csv
+*_dump.sql
+scripts/*_sample.py
+scripts/export_*.py
+scripts/list_tables.py
+scripts/check_*.py
+
+# Cleanup logs
+*_cleanup_log.json
+*_fix_log.json
+
+# Case sensitivity protection (prevent Templates/ on case-sensitive systems)
+# Use exact path to avoid matching templates/ on case-insensitive systems
+/Templates/

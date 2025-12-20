@@ -1,0 +1,26 @@
+[Unit]
+Description=AI Collab Online Flask Application
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ai_collab_online
+Environment="PATH=/var/www/ai_collab_online/venv/bin"
+Environment="FLASK_ENV=production"
+Environment="DATABASE_URL=postgresql://ai_collab_user:your_secure_password_here@localhost:5432/ai_collab_online?sslmode=disable"
+Environment="SECRET_KEY=ai-collab-production-secret-key-2024"
+Environment="USE_OLLAMA=true"
+Environment="OLLAMA_BASE_URL=http://localhost:11434"
+Environment="OLLAMA_MODEL=llama3:8b"
+ExecStart=/var/www/ai_collab_online/venv/bin/gunicorn --config deployment/gunicorn.conf.py src.main:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 

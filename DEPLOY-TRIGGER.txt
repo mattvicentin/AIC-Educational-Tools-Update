@@ -1,0 +1,4 @@
+Deployment trigger
+Date: $(date)
+Commit: fcf7803
+Purpose: Force Railway redeploy with all Phase 3 changes

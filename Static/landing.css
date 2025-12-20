@@ -1,0 +1,140 @@
+/* Rainbow background that transitions to grayscale */
+.landing-bg {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  z-index: -1;
+  background: linear-gradient(120deg, #ff5f6d, #ffc371, #47cf73, #1fa2ff, #a259c4, #ff5f6d);
+  background-size: 400% 400%;
+  animation: rainbowMove 20s ease-in-out infinite;
+  filter: grayscale(0%);
+  transition: filter 0.8s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes rainbowMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  background: transparent;
+  overflow-x: hidden;
+}
+
+.landing-hero {
+  padding: 3rem 1rem 2rem 1rem;
+  text-align: center;
+}
+
+.landing-hero h1 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #222;
+  margin-bottom: 1rem;
+  letter-spacing: -1px;
+}
+
+.badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.85);
+  color: #1fa2ff;
+  font-weight: 700;
+  border-radius: 2rem;
+  padding: 0.5rem 1.5rem;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px rgba(30,30,60,0.08);
+  margin-top: 0.5rem;
+  letter-spacing: 0.5px;
+}
+
+.landing-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3rem;
+  max-width: 700px;
+  margin: 0 auto 3rem auto;
+  padding: 0 1rem;
+}
+
+.landing-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.2rem;
+}
+
+.landing-img {
+  max-width: 400px;
+  width: 100%;
+  border-radius: 1.2rem;
+  box-shadow: 0 4px 24px rgba(30,30,60,0.10);
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+.landing-img:hover {
+  box-shadow: 0 8px 32px rgba(30,30,60,0.18);
+  transform: scale(1.03);
+}
+
+.caption {
+  font-size: 1.15rem;
+  color: #222;
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.cta-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 2.5rem;
+  margin-bottom: 3rem;
+}
+
+.cta-btn {
+  background: linear-gradient(90deg, #1fa2ff, #47cf73);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 700;
+  padding: 1rem 2.5rem;
+  border: none;
+  border-radius: 2rem;
+  box-shadow: 0 2px 12px rgba(30,30,60,0.10);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.3s, transform 0.2s;
+}
+.cta-btn:hover {
+  background: linear-gradient(90deg, #47cf73, #1fa2ff);
+  transform: translateY(-2px) scale(1.04);
+}
+
+/* Responsive styles */
+@media (max-width: 600px) {
+  .landing-hero h1 {
+    font-size: 2rem;
+  }
+  .landing-img {
+    max-width: 95vw;
+    border-radius: 0.7rem;
+  }
+  .caption {
+    font-size: 1rem;
+    max-width: 95vw;
+  }
+  .landing-steps {
+    gap: 2rem;
+  }
+}
+
+/* Hide scrollbars for a clean look */
+body::-webkit-scrollbar {
+  display: none;
+}
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+} 

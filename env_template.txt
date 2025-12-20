@@ -1,0 +1,37 @@
+# AI Collab Environment Configuration
+# Copy this file to .env and fill in your actual values
+
+# Flask Secret Key (required for sessions and security)
+# Generate a secure key: python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=your_secret_key_here
+
+# AI Services (choose one or both)
+# Get from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# Get from: https://console.anthropic.com/
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+
+# AI Response Configuration (optional - defaults are sensible)
+# Maximum tokens for AI responses (default: 400, increase if responses truncate too often)
+AI_MAX_TOKENS=400
+# Number of conversation turns to include as context (default: 8, one turn = user + assistant)
+AI_MAX_HISTORY=8
+
+# Per-Mode Token Overrides (optional - for modes that need more/less depth)
+# Pattern: AI_MAX_TOKENS_{MODE_KEY_UPPERCASE}
+# AI_MAX_TOKENS_DRAFT=500    # Draft mode needs more room
+# AI_MAX_TOKENS_POLISH=350   # Polish mode is brief
+# AI_MAX_TOKENS_EXPLORE=350  # Keep exploration concise
+
+# Google Services (optional - for Google Docs integration)
+# Service account file path (default: service-account-key.json)
+GOOGLE_SERVICE_ACCOUNT_FILE=service-account-key.json
+
+# Google OAuth (optional - for user Google Docs access)
+# Get from: https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+GOOGLE_REDIRECT_URI=http://localhost:5000/auth/google/callback 

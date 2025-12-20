@@ -1,0 +1,288 @@
+/* Rainbow background that transitions to grayscale */
+.landing-bg {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  z-index: -1;
+  background: linear-gradient(120deg, #ff5f6d, #ffc371, #47cf73, #1fa2ff, #a259c4, #ff5f6d);
+  background-size: 400% 400%;
+  animation: rainbowMove 20s ease-in-out infinite;
+  filter: grayscale(0%);
+  transition: filter 0.8s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes rainbowMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  background: transparent;
+  overflow-x: hidden;
+}
+
+/* Landing navbar: single row, dark theme */
+.landing-navbar-dark {
+  background: #000;
+  color: #fff;
+}
+.landing-navbar-dark a {
+  color: #fff !important;
+}
+.landing-navbar-dark a:hover {
+  color: #dddddd !important;
+}
+.landing-nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 4rem; /* 64px */
+  white-space: nowrap;
+  flex-wrap: nowrap;
+}
+
+/* Override legacy white header if template wasn't updated */
+header.bg-card {
+  background: #000 !important;
+  color: #fff !important;
+}
+header.bg-card a {
+  color: #fff !important;
+}
+/* Ensure the logo link uses the same font weight/size and white color */
+header.bg-card a.text-2xl.font-bold {
+  color: #fff !important;
+}
+header.bg-card a.no-underline {
+  text-decoration: none !important;
+}
+
+/* Match site logo typography; ensure readable white text */
+header.bg-card .flex.items-center > a {
+  font-weight: 700 !important;           /* font-bold */
+  font-size: 1.5rem !important;          /* text-2xl */
+  line-height: 2rem !important;          /* align with Tailwind 2xl */
+  letter-spacing: -0.01em !important;    /* tracking-tight */
+  color: #ffffff !important;             /* white on dark header */
+  text-decoration: none !important;      /* no underline */
+}
+
+/* Ensure side padding exists even if template classes are altered */
+header.bg-card .max-w-7xl {
+  padding-left: 1.25rem !important;  /* ~px-5 fallback */
+  padding-right: 1.25rem !important;
+}
+@media (min-width: 640px) {
+  header.bg-card .max-w-7xl {
+    padding-left: 1.5rem !important;   /* sm:px-6 */
+    padding-right: 1.5rem !important;
+  }
+}
+@media (min-width: 1024px) {
+  header.bg-card .max-w-7xl {
+    padding-left: 2rem !important;     /* lg:px-8 */
+    padding-right: 2rem !important;
+  }
+}
+
+/* Prevent wrapping of nav on wide screens unequivocally */
+@media (min-width: 768px) {
+  header.bg-card nav {
+    flex: 0 0 auto !important;
+  }
+}
+
+/* Keep legacy header on a single row */
+header.bg-card .max-w-7xl > .flex {
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+}
+header.bg-card nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1.25rem; /* ~space-x-5 */
+  white-space: nowrap !important;
+}
+header.bg-card nav a {
+  white-space: nowrap !important;
+  display: inline-block;
+  font-size: 1rem !important;          /* ~33% smaller than 1.5rem */
+  line-height: 1.5rem !important;      /* maintain readability */
+}
+
+/* Override generic .flex.items-center > a rule for nav specifically */
+header.bg-card nav.flex.items-center > a {
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+}
+
+/* Responsive navbar behavior */
+@media (min-width: 768px) {
+  /* Keep everything on one row when there is room */
+  header.bg-card .max-w-7xl > .flex {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    height: 4rem; /* align with h-16 */
+    gap: 1rem;
+  }
+  /* Push menu to the right; prevent second row */
+  header.bg-card .max-w-7xl > .flex > nav {
+    margin-left: auto !important;
+  }
+  header.bg-card nav {
+    gap: 1.25rem;
+    white-space: nowrap !important;
+  }
+  header.bg-card nav a {
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  /* Allow wrapping on narrow screens */
+  header.bg-card .max-w-7xl > .flex {
+    flex-wrap: wrap !important;
+    white-space: normal !important;
+    height: auto;
+    row-gap: 0.5rem;
+  }
+  header.bg-card nav {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    white-space: normal !important;
+  }
+  header.bg-card nav a {
+    white-space: normal !important;
+  }
+}
+.landing-nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 4rem; /* 64px */
+  white-space: nowrap;
+  flex-wrap: nowrap;
+}
+
+.landing-hero {
+  padding: 3rem 1rem 2rem 1rem;
+  text-align: center;
+}
+
+.landing-hero h1 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #222;
+  margin-bottom: 1rem;
+  letter-spacing: -1px;
+}
+
+.badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.85);
+  color: #1fa2ff;
+  font-weight: 700;
+  border-radius: 2rem;
+  padding: 0.5rem 1.5rem;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px rgba(30,30,60,0.08);
+  margin-top: 0.5rem;
+  letter-spacing: 0.5px;
+}
+
+.landing-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3rem;
+  max-width: 700px;
+  margin: 0 auto 3rem auto;
+  padding: 0 1rem;
+}
+
+.landing-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.2rem;
+}
+
+.landing-img {
+  max-width: 400px;
+  width: 100%;
+  border-radius: 1.2rem;
+  box-shadow: 0 4px 24px rgba(30,30,60,0.10);
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+.landing-img:hover {
+  box-shadow: 0 8px 32px rgba(30,30,60,0.18);
+  transform: scale(1.03);
+}
+
+.caption {
+  font-size: 1.15rem;
+  color: #222;
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.cta-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 2.5rem;
+  margin-bottom: 3rem;
+}
+
+.cta-btn {
+  background: linear-gradient(90deg, #1fa2ff, #47cf73);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 700;
+  padding: 1rem 2.5rem;
+  border: none;
+  border-radius: 2rem;
+  box-shadow: 0 2px 12px rgba(30,30,60,0.10);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.3s, transform 0.2s;
+}
+.cta-btn:hover {
+  background: linear-gradient(90deg, #47cf73, #1fa2ff);
+  transform: translateY(-2px) scale(1.04);
+}
+
+/* Responsive styles */
+@media (max-width: 600px) {
+  .landing-hero h1 {
+    font-size: 2rem;
+  }
+  .landing-img {
+    max-width: 95vw;
+    border-radius: 0.7rem;
+  }
+  .caption {
+    font-size: 1rem;
+    max-width: 95vw;
+  }
+  .landing-steps {
+    gap: 2rem;
+  }
+}
+
+/* Hide scrollbars for a clean look */
+body::-webkit-scrollbar {
+  display: none;
+}
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+

@@ -1,0 +1,70 @@
+/* Chat Overrides - Maximum Specificity to Override Tailwind */
+
+/* Add Comment buttons - different colors for user vs AI messages */
+.message-bubble.user .message-timestamp > button[data-toggle-comment] {
+  --muted-fg-50: #ffffff;  /* White text on purple user messages */
+  background-color: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.35);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.message-bubble.assistant .message-timestamp > button[data-toggle-comment] {
+  --muted-fg-50: #64748B;  /* Original gray on light AI messages */
+  background-color: rgba(100,116,139,0.1);
+  border: 1px solid rgba(100,116,139,0.25);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Hover states for both message types */
+.message-bubble.user .message-timestamp > button[data-toggle-comment]:hover {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
+
+.message-bubble.assistant .message-timestamp > button[data-toggle-comment]:hover {
+  filter: brightness(0.9);
+  transform: scale(1.02);
+}
+
+/* Focus states */
+.message-timestamp > button[data-toggle-comment]:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Pin toggle - bubble-specific colors (match Add Comment pattern) */
+.message-bubble.user .message-timestamp > button.pin-toggle {
+  color: #ffffff !important;  /* White text on purple user bubbles */
+  background-color: rgba(255,255,255,0.16) !important;
+  border: 1px solid rgba(255,255,255,0.35) !important;
+  font-weight: 600 !important;
+}
+
+.message-bubble.assistant .message-timestamp > button.pin-toggle {
+  color: hsl(var(--primary)) !important;  /* Primary color on light AI bubbles */
+  background-color: rgba(100,116,139,0.1) !important;
+  border: 1px solid rgba(100,116,139,0.25) !important;
+  font-weight: 600 !important;
+}
+
+/* Hover states */
+.message-bubble.user .message-timestamp > button.pin-toggle:hover {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
+
+.message-bubble.assistant .message-timestamp > button.pin-toggle:hover {
+  filter: brightness(0.9);
+  transform: scale(1.02);
+}
+
+.message-timestamp > button.pin-toggle:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}

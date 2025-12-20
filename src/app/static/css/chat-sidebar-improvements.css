@@ -1,0 +1,139 @@
+/* Chat Sidebar Improvements - Plain CSS (no @apply) */
+
+/* Section labels */
+.section-label { 
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.5rem;
+}
+
+/* Card styling */
+.card { 
+    border-radius: 0.5rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card) / 0.5);
+    padding: 0.75rem;
+}
+
+/* List items */
+.list-item { 
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid hsl(var(--border));
+    transition: background-color 0.2s;
+}
+
+.list-item:hover {
+    background: hsl(var(--muted));
+}
+
+.list-item .sub { 
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Icon buttons */
+.icon-btn { 
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.icon-btn:hover {
+    background: hsl(var(--muted));
+}
+
+/* Accessible accordion styling */
+.ui-accordion > .ui-accordion-summary { 
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+    list-style: none;
+    transition: all 0.2s;
+}
+
+.ui-accordion > .ui-accordion-summary:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+}
+
+.ui-accordion > .ui-accordion-summary::-webkit-details-marker { 
+    display: none; 
+}
+
+.ui-accordion > .ui-accordion-body { 
+    margin-top: 0.5rem;
+    padding: 0 0.5rem;
+}
+
+.ui-accordion[open] > .ui-accordion-summary { 
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+}
+
+/* Tone critique specific styling */
+#tone-critique-mount {
+    margin-top: 0;  /* Stack gap controls spacing now */
+}
+
+#tone-critique-mount details {
+    @apply ui-accordion;
+}
+
+#tone-critique-mount summary {
+    @apply ui-accordion-summary;
+}
+
+#tone-critique-mount .mt-3.p-3 {
+    @apply ui-accordion-body bg-muted/50;
+}
+
+/* Custom slider styling for critique tool */
+#critique-slider {
+    background: linear-gradient(to right, 
+        #22c55e 0%, 
+        #84cc16 25%, 
+        #eab308 50%, 
+        #f97316 75%, 
+        #ef4444 100%);
+    height: 8px;
+    border-radius: 4px;
+    appearance: none;
+    cursor: pointer;
+}
+
+#critique-slider::-webkit-slider-thumb {
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: 2px solid #3b82f6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#critique-slider::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: 2px solid #3b82f6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Focus mode hiding */
+body.focus-mode .tone-critique { 
+    display: none !important; 
+}

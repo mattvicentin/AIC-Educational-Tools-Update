@@ -1,0 +1,2786 @@
+/* Button Components */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+/* Primary Button */
+.btn-primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+.btn-primary:hover {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+/* Improve primary button affordance while matching theme */
+.btn-primary {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  border-width: 1px;
+}
+
+.btn-primary:active {
+  transform: translateY(0.5px);
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border-color: hsl(var(--secondary));
+}
+
+.btn-secondary:hover {
+  background-color: hsl(var(--secondary) / 0.8);
+}
+
+/* Outline Button */
+.btn-outline {
+  background-color: transparent;
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+.btn-outline:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* Destructive Button */
+.btn-destructive {
+  background-color: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  border-color: hsl(var(--destructive));
+}
+
+.btn-destructive:hover {
+  background-color: hsl(var(--destructive) / 0.9);
+}
+
+/* Ghost Button */
+.btn-ghost {
+  background-color: transparent;
+  color: hsl(var(--foreground));
+}
+
+.btn-ghost:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* Navigation Breadcrumb */
+.navigation-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 0;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.breadcrumb-link {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: hsl(var(--foreground));
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: hsl(var(--primary));
+}
+
+.breadcrumb-separator {
+  color: var(--muted-fg-40);
+}
+
+.breadcrumb-current {
+  color: var(--muted-fg-50);
+  font-weight: 500;
+}
+
+/* Chat Layout Wrapper */
+.chat-layout {
+  /* Allow the main column to grow with content and avoid extra cropping when input occupies flow */
+  min-height: calc(100vh - 64px - 120px);
+  height: auto;
+  max-height: none;
+}
+
+/* Modern Chat Interface Styles */
+.chat-container {
+  background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%);
+  height: 100%; /* Fill the chat-layout height */
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.chat-sidebar {
+  background: hsl(var(--card));
+  border-right: 1px solid hsl(var(--border));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  padding: 0 1rem 1rem 1rem;  /* Breathing room for accordion sections */
+  overflow-y: auto;  /* Allow scrolling when content exceeds height */
+  -webkit-overflow-scrolling: touch;  /* Smooth scrolling on iOS */
+}
+
+.chat-main {
+  background: hsl(var(--background));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Modern Message Bubbles */
+.message-bubble {
+  position: relative;
+  max-width: 75%;
+  margin-bottom: 1rem;
+  animation: messageSlideIn 0.3s ease-out;
+  overflow: visible;
+  /* Ensure the bubble doesn't overflow the container */
+  box-sizing: border-box;
+}
+
+.message-bubble.user {
+  margin-left: auto;
+  background: #8047A7;
+  color: #fff;
+  border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* Ensure user messages don't overflow */
+  max-width: calc(75% - 1rem);
+  margin-right: 0.5rem;
+}
+
+.message-bubble.assistant {
+  margin-right: auto;
+  background: #fff;
+  color: hsl(var(--foreground));
+  border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
+  /* Ensure assistant messages don't overflow */
+  max-width: calc(75% - 1rem);
+  margin-left: 0.5rem;
+}
+
+.message-content {
+  padding: 0.875rem 1.125rem;
+  line-height: 1.5;
+  font-size: 0.9375rem;
+  /* Ensure content doesn't overflow */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.message-timestamp {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-top: 0.25rem;
+}
+
+/* Ensure the flex container for user messages doesn't cause overflow */
+.message-bubble.user .flex {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Ensure the message content container doesn't overflow */
+.message-bubble.user .flex-1 {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Ensure the avatar doesn't cause overflow */
+.user-avatar {
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  margin-right: 0;
+  margin-top: 0.5rem;
+}
+
+/* AI Avatar */
+.ai-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%); /* Consistent grey for AI */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.625rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+/* Avatar color classes for consistent user coloring */
+.avatar-color-1 {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%); /* Green */
+}
+.avatar-color-2 {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Orange */
+}
+.avatar-color-3 {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); /* Red */
+}
+.avatar-color-4 {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%); /* Purple */
+}
+.avatar-color-5 {
+  background: linear-gradient(135deg, #06B6D4 0%, #0891B2 100%); /* Cyan */
+}
+.avatar-color-6 {
+  background: linear-gradient(135deg, #F472B6 0%, #EC4899 100%); /* Pink */
+}
+
+.user-avatar, .member-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.625rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin-left: 1rem;
+  margin-right: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.avatar-text {
+  display: block;
+  text-align: center;
+  line-height: 1;
+  font-size: 0.625rem;
+}
+
+/* Member avatars for sidebar */
+.member-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.625rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+/* Member list styling */
+.member-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  background: #f9fafb;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  margin-bottom: 0.25rem;
+  background: white;
+  transition: background-color 0.2s;
+}
+
+.member-item:hover {
+  background: #f3f4f6;
+}
+
+.member-item:last-child {
+  margin-bottom: 0;
+}
+
+.member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-name {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #111827;
+  margin: 0;
+}
+
+.member-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.member-action-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: #E5E7EB; /* Light grey for Send Message button */
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.member-action-btn:hover {
+  background: #D1D5DB; /* Slightly darker grey on hover */
+  color: #374151;
+}
+
+.member-action-btn.primary {
+  background: #DBEAFE; /* Much lighter blue for View Profile button */
+  color: #1E40AF; /* Darker blue text for contrast */
+}
+
+.member-action-btn.primary:hover {
+  background: #BFDBFE; /* Slightly darker light blue on hover */
+}
+
+/* Modern Input Area */
+.chat-input-container {
+  /* Liquid glass bar inspired by iOS 18 "glass" effect */
+  /* Sticky positioning keeps it visible while scrolling (hovering UX) */
+  /* Focus mode will override with position: fixed !important for full-width overlay */
+  position: sticky;
+  bottom: 0;
+  margin: 0 16px 16px 16px;
+  padding: 0.75rem 1rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.25) 42%,
+    rgba(255, 255, 255, 0.15) 100%
+  );
+  box-shadow:
+    0 18px 40px -25px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  overflow: hidden;
+  isolation: isolate;
+  z-index: 10000;
+}
+
+.chat-input-container::before {
+  /* Subtle liquid highlight */
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: radial-gradient(
+      200% 120% at 15% 0%,
+      rgba(255, 255, 255, 0.65),
+      transparent 48%
+    ),
+    radial-gradient(
+      120% 200% at 90% 10%,
+      rgba(255, 255, 255, 0.35),
+      transparent 60%
+    );
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.chat-input-container > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dark .chat-input-container {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(
+    135deg,
+    rgba(24, 24, 27, 0.75) 0%,
+    rgba(14, 16, 33, 0.6) 45%,
+    rgba(56, 66, 94, 0.35) 100%
+  );
+  box-shadow:
+    0 24px 45px -28px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.chat-input {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 1.35rem;
+  padding: 0.5rem 0.875rem; /* tighter vertical rhythm */
+  font-size: 0.9rem;
+  line-height: 1.25; /* reduce internal line spacing */
+  transition: all 0.2s ease;
+  box-shadow:
+    0 0 20px rgba(255, 255, 255, 0.25) inset,
+    0 8px 18px -12px rgba(15, 23, 42, 0.4);
+}
+
+/* Multi-line behavior with visible resize grip */
+.chat-textarea {
+  resize: none; /* autogrow handles height; hide native grip */
+  min-height: 40px;
+  max-height: 45vh; /* desktop cap */
+  overflow-y: auto;
+  /* Ensure the resize grip isn't overlapped by the send button */
+  padding-right: 1rem;
+  /* Make sure it can grow/shrink correctly within the flex row */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .chat-textarea {
+    max-height: 35vh; /* mobile cap */
+  }
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 0 0 3px hsl(var(--primary) / 0.18),
+    0 0 24px rgba(255, 255, 255, 0.45) inset;
+}
+
+.send-button {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.9) 100%);
+  color: hsl(var(--primary-foreground));
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.send-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Comment System */
+.comment-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid hsl(var(--border) / 0.3);
+}
+
+.comment-item {
+  background: #FED5F4;
+  color: #000;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin: 0 0.25rem 0.5rem 0.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.comment-item p {
+  color: #000;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.comment-form {
+  margin-top: 0.5rem;
+}
+
+.comment-textarea {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  font-size: 0.8125rem;
+  resize: vertical;
+  min-height: 2.5rem;
+  color: #000 !important;
+}
+
+.comment-textarea:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+
+/* System Instructions Dropdown */
+.system-instructions {
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.system-instructions summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.system-instructions summary .chevron {
+  transition: transform 0.2s ease;
+  color: hsl(var(--muted-foreground));
+}
+
+.system-instructions[open] summary .chevron {
+  transform: rotate(180deg);
+  color: hsl(var(--foreground));
+}
+
+.system-instructions summary:hover {
+  color: hsl(var(--primary));
+}
+
+/* Scroll to Bottom Button */
+.scroll-to-bottom {
+  position: fixed;
+  /* Safe-area aware placement */
+  right: 1rem;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 7rem);
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.9) 100%);
+  color: hsl(var(--primary-foreground));
+  border-radius: 50%;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: opacity 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 11000;  /* Above input bar (10000) and any stacking contexts */
+}
+
+.scroll-to-bottom.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scroll-to-bottom:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Animations */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading States */
+.sending-state {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Loading animation for send button */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Loading state for send button */
+.send-button:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.send-button:disabled #loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 767px) {
+  .message-bubble {
+    max-width: 85%;
+  }
+  
+  .message-bubble.user {
+    max-width: calc(85% - 1rem);
+    margin-right: 0.5rem;
+  }
+  
+  .message-bubble.assistant {
+    max-width: calc(85% - 1rem);
+    margin-left: 0.5rem;
+  }
+  
+  .chat-sidebar {
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .chat-sidebar.open {
+    transform: translateX(0);
+  }
+  
+  /* Mobile safe area and buffer improvements */
+  .chat-layout {
+    min-height: calc(100vh - 64px - 100px); /* Smaller footer on mobile */
+    height: auto;
+    max-height: none;
+  }
+  
+  .chat-container {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  #chat-messages {
+    padding-left: 12px;
+    padding-right: 12px;
+    max-width: 100%; /* Ensure container doesn't overflow */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    box-sizing: border-box; /* Ensure padding is included in width calculation */
+  }
+  
+  .chat-input-container {
+    /* Mobile: sticky behavior inherited from main rule above */
+    /* Just ensure safe-area padding is respected */
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Remove hard-coded padding-bottom so JS can control it precisely */
+
+/* Footer spacing handled by chat container height reduction */
+
+/* Mobile Navigation Styles */
+#mobile-menu-button {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Force hide hamburger menu on desktop - HIGH PRIORITY */
+@media (min-width: 768px) {
+  #mobile-menu-button {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+  }
+  
+  #mobile-menu-overlay {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* Additional desktop hiding with higher specificity */
+@media (min-width: 768px) {
+  header #mobile-menu-button[class*="md:hidden"] {
+    display: none !important;
+  }
+}
+
+/* Only hide md:hidden elements on desktop, not mobile */
+@media screen and (min-width: 768px) {
+  .md\\:hidden {
+    display: none !important;
+  }
+}
+
+#mobile-menu-overlay {
+  backdrop-filter: blur(4px);
+}
+
+#mobile-menu-overlay > div {
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+/* Ensure text is readable on the light background */
+#mobile-menu-overlay nav a {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  color: #1f2937; /* Dark text for better readability */
+}
+
+#mobile-menu-overlay nav a:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: translateX(2px);
+}
+
+#mobile-menu-overlay nav a:active {
+  transform: translateX(1px);
+}
+
+/* Ensure header text is readable */
+#mobile-menu-overlay h2 {
+  color: #1f2937;
+}
+
+/* Ensure footer text is readable */
+#mobile-menu-overlay .text-sm {
+  color: #6b7280;
+}
+
+#mobile-menu-overlay nav a {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+#mobile-menu-overlay nav a:hover {
+  background-color: hsl(var(--muted));
+  transform: translateX(2px);
+}
+
+#mobile-menu-overlay nav a:active {
+  transform: translateX(1px);
+}
+
+/* Mobile menu close button */
+#mobile-menu-close {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure mobile menu is above everything */
+#mobile-menu-overlay {
+  z-index: 9999;
+}
+
+/* Chat Sidebar Toggle Button Styles */
+#chat-sidebar-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+#chat-sidebar-toggle:hover {
+  background-color: hsl(var(--muted));
+  transform: scale(1.05);
+}
+
+#chat-sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Room Page Layout Improvements - Clean Minimal Theme */
+.room-header {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.room-header h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.875rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.room-description {
+  margin: 0.75rem 0;
+  color: var(--muted-fg-50);
+  line-height: 1.6;
+}
+
+.room-goals {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border-left: 4px solid #3b82f6;
+}
+
+.room-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.room-content {
+  margin: 2rem 0;
+}
+
+.room-content h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.chat-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.chat-item h4 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.chat-item h4 a {
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.chat-item h4 a:hover {
+  color: #2563eb;
+}
+
+.chat-mode {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #f0f9ff;
+  color: #0369a1;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.room-members {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.room-members h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.room-members ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.room-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+/* Achievements Section Improvements */
+.achievements-section {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.achievements-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.achievement-badge {
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.achievement-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.achievement-badge small {
+  display: block;
+  margin-top: 0.5rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.no-achievements {
+  text-align: center;
+  color: #64748b;
+  font-style: italic;
+  padding: 1rem;
+}
+
+/* Navigation Breadcrumb Improvements */
+.navigation-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  padding: 0.75rem 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.breadcrumb-link {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.breadcrumb-link:hover {
+  color: #2563eb;
+}
+
+.breadcrumb-separator {
+  color: var(--muted-fg-40);
+}
+
+.breadcrumb-current {
+  color: var(--muted-fg-50);
+  font-weight: 500;
+}
+
+/* Responsive Design for Room Page */
+@media (max-width: 767px) {
+  .room-header {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .room-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .room-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .room-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .chat-list {
+    gap: 0.75rem;
+  }
+  
+  .chat-item {
+    padding: 1rem;
+  }
+  
+  .achievements-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .room-members ul {
+    gap: 0.5rem;
+  }
+}
+
+/* Dark Mode Enhancements */
+.dark .message-bubble.assistant {
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
+}
+
+.dark .chat-input {
+  background: rgba(17, 24, 39, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.dark .comment-item {
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+}
+
+/* Only apply white color to user message content and timestamp, not all descendants */
+.message-bubble.user .message-content,
+.message-bubble.user .message-timestamp {
+  color: #fff !important;
+}
+
+/* Mobile-Optimized Form Styles */
+@media (max-width: 767px) {
+  /* Larger form inputs for mobile */
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    min-height: 48px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 2px solid #e2e8f0;
+    transition: all 0.2s ease;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none;
+  }
+
+  /* Better spacing for mobile forms */
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #1f2937;
+  }
+
+  /* Larger buttons for mobile */
+  .btn,
+  button[type="submit"],
+  input[type="submit"] {
+    min-height: 48px;
+    font-size: 16px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  /* Improved checkbox and radio buttons */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 20px;
+    min-height: 20px;
+    margin-right: 12px;
+  }
+
+  /* Better select dropdowns */
+  .form-group select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 40px;
+    appearance: none;
+  }
+
+  /* Auth form improvements */
+  .auth-form {
+    padding: 1.5rem;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+  }
+
+  .auth-container {
+    padding: 1rem;
+    max-width: 100%;
+  }
+
+  .auth-container h2 {
+    font-size: 1.75rem;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+
+  /* Better form validation messages */
+  .form-group small {
+    font-size: 14px;
+    margin-top: 0.5rem;
+    color: #6b7280;
+  }
+
+  /* Improved textarea for mobile */
+  .form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+  }
+
+  /* Enhanced touch feedback */
+  .btn:active,
+  button[type="submit"]:active,
+  
+  /* Mobile-optimized rubric editing buttons */
+  .text-xs.px-2.py-1 {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    touch-action: manipulation;
+  }
+  
+  /* Ensure rubric edit buttons are easily tappable on mobile */
+  button[onclick*="editLevel"],
+  button[onclick*="saveLevelEdit"],
+  button[onclick*="cancelLevelEdit"] {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Improve textarea interaction on mobile */
+  .edit-mode textarea {
+    min-height: 80px;
+    font-size: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    border: 2px solid #e2e8f0;
+  }
+  
+  .edit-mode textarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none;
+  }
+  
+  /* Mobile-optimized accordion headers for rubric sections */
+  .accordion-header,
+  [data-accordion-header] {
+    min-height: 48px;
+    padding: 12px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Ensure rubric sections are easily expandable on mobile */
+  .rubric-section,
+  [data-rubric-section] {
+    margin-bottom: 16px;
+  }
+  
+  .rubric-section .accordion-content,
+  [data-rubric-section] .accordion-content {
+    padding: 16px;
+  }
+  
+  /* Mobile-friendly accordion styles that match design system */
+  .criterion-header button {
+    min-height: 48px !important;
+    min-width: 48px !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1) !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+  }
+  
+  .criterion-header button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  .level-toggle {
+    min-height: 48px !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1) !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+  }
+  
+  .level-toggle:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  /* Ensure buttons are responsive on mobile */
+  @media (max-width: 767px) {
+    .criterion-header button {
+      min-height: 56px !important;
+      min-width: 56px !important;
+      padding: 16px !important;
+    }
+    
+    .level-toggle {
+      min-height: 56px !important;
+      padding: 16px !important;
+    }
+  }
+  
+  /* Improve accordion header touch targets */
+  .criterion-header {
+    min-height: 56px;
+    padding: 12px 16px;
+  }
+  
+  /* Ensure accordion content is properly spaced on mobile */
+  .levels-accordion {
+    padding: 0;
+  }
+  
+  .level-content {
+    padding: 16px;
+  }
+  input[type="submit"]:active {
+    transform: scale(0.98);
+  }
+
+  /* Better form sections */
+  .auth-form h3 {
+    font-size: 1.25rem;
+    margin: 2rem 0 1rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  /* Improved checkbox groups */
+  .checkbox-group {
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .checkbox-group label {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Enhanced Chat Input for Mobile */
+  .chat-input {
+    min-height: 48px;
+    font-size: 16px;
+    padding: 12px 16px;
+    border-radius: 24px;
+    border: 2px solid #e2e8f0;
+  }
+
+  .chat-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .send-button {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .send-button:active {
+    transform: scale(0.95);
+  }
+
+  /* Ensure loading icon is properly sized on mobile */
+  .send-button #loading-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Phase 3: Responsive Layout Improvements */
+  
+  /* 3.1 Room/Home Page Layout Improvements */
+  .max-w-7xl {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Better room card spacing on mobile */
+  .grid {
+    gap: 1rem;
+  }
+  
+  /* Improved room cards for mobile */
+  .bg-card {
+    background-color: hsl(var(--card));
+    padding: 1rem;
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid hsl(var(--border));
+  }
+  
+  /* Better button spacing in room cards */
+  .flex.items-center.space-x-2 {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .flex.items-center.space-x-2 > * {
+    flex: 1;
+    min-width: 80px;
+    justify-content: center;
+  }
+  
+  /* Improved invitation banner for mobile */
+  .bg-gradient-to-r.from-blue-50.to-indigo-50 {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Better welcome section for mobile */
+  .mb-8 {
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Improved empty state for mobile */
+  .text-center.py-12 {
+    padding: 2rem 1rem;
+  }
+
+  /* Better AI toggle for mobile */
+  .ai-toggle {
+    padding: 12px 0;
+    margin-bottom: 16px;
+  }
+
+  .ai-toggle input[type="checkbox"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+
+  .ai-toggle label {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  /* Improved comment system for mobile */
+  .comment-textarea {
+    min-height: 60px;
+    font-size: 16px;
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .comment-item {
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin: 0 0 8px 0; /* Remove horizontal margins to prevent overflow */
+    max-width: 100%; /* Ensure comment doesn't overflow container */
+    word-wrap: break-word; /* Break long words */
+    overflow-wrap: break-word; /* Modern word breaking */
+  }
+  
+  /* Ensure comment content doesn't overflow */
+  .comment-item p {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+  }
+  
+  /* Better comment form for mobile */
+  .comment-form {
+    margin-top: 0.5rem;
+    padding: 0 0.5rem; /* Add some padding to prevent edge overflow */
+  }
+  
+  /* Ensure comment textarea doesn't overflow */
+  .comment-textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 3.2 Chat Interface Mobile Optimization */
+  
+  /* Better message bubble sizing for mobile */
+  .message-bubble {
+    max-width: 90%;
+    padding: 0.75rem 1rem;
+    border-radius: 16px;
+    margin-bottom: 0.75rem;
+    word-wrap: break-word; /* Ensure long words break */
+    overflow-wrap: break-word; /* Modern word breaking */
+  }
+  
+  .message-bubble.user {
+    max-width: calc(90% - 1rem);
+    margin-right: 0.5rem;
+  }
+  
+  .message-bubble.assistant {
+    max-width: calc(90% - 1rem);
+    margin-left: 0.5rem;
+  }
+  
+  /* Improved message content spacing */
+  .message-content {
+    line-height: 1.5;
+    word-wrap: break-word;
+  }
+  
+  /* Better message timestamp positioning */
+  .message-timestamp {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+  }
+  
+  /* Improved chat input area for mobile */
+  .chat-input-container {
+    /* Sticky positioning inherited - just adjust padding for mobile */
+    padding: 0.75rem 1rem;
+    border-top: 1px solid hsl(var(--border));
+  }
+  
+  /* Better mobile comment system */
+  .comment-section {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    max-width: 100%; /* Ensure section doesn't overflow */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+  }
+  
+  /* Optimize AI toggle for mobile */
+  .ai-toggle {
+    padding: 0.75rem 0;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.3);
+  }
+  
+  /* Better system instructions for mobile */
+  .system-instructions {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+  }
+  
+  /* Improved scroll to bottom button for mobile */
+  .scroll-to-bottom {
+    bottom: 8rem; /* Increased to clear the fixed input bar */
+    right: 1rem;
+    width: 3rem;
+    height: 3rem;
+  }
+
+  /* 3.3 Dashboard Mobile Improvements */
+  
+  /* Better dashboard layout for mobile */
+  .container {
+    padding: 1rem;
+  }
+  
+  /* Improved dashboard actions for mobile */
+  .dashboard-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .dashboard-actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+  }
+  
+  /* Better room grid for mobile - prevent horizontal overflow */
+  .room-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  /* Improved room cards for mobile - force containment */
+  .room-card {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0.75rem;
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Allow all card contents to shrink and wrap */
+  .room-card * {
+    min-width: 0; /* Flex items can shrink below content size */
+  }
+  
+  /* Ensure room card header can shrink properly */
+  .room-card__header {
+    min-width: 0;
+  }
+  
+  /* Force Tailwind grid to respect viewport on mobile */
+  .grid {
+    overflow: hidden; /* Prevent grid blowout */
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  body {
+    overflow-x: hidden;
+  }
+  
+  .max-w-7xl {
+    overflow-x: hidden; /* Container-level protection */
+  }
+  
+  /* Better room stats for mobile */
+  .room-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+  
+  .stat-item {
+    text-align: center;
+    padding: 0.5rem;
+    background: hsl(var(--muted));
+    border-radius: 8px;
+  }
+  
+  /* Improved room actions for mobile */
+  .room-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  
+  .room-actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  
+  /* Better summary stats for mobile */
+  .summary-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .summary-item {
+    text-align: center;
+    padding: 1rem;
+    background: hsl(var(--card));
+    border-radius: 12px;
+    border: 1px solid hsl(var(--border));
+  }
+  
+  /* Improved empty state for mobile */
+  .empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+  
+  .empty-state .btn {
+    width: 100%;
+    max-width: 300px;
+    margin-top: 1rem;
+  }
+}
+
+/* Improved empty state for mobile */
+@media (max-width: 767px) {
+    .empty-state {
+        padding: 2rem 1rem;
+        text-align: center;
+    }
+    
+    .empty-state h3 {
+        font-size: 1.25rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .empty-state p {
+        font-size: 0.875rem;
+        color: var(--muted-fg-40);
+    }
+}
+
+/* 4.1 Pull-to-Refresh and Touch-Optimized Scrolling */
+.pull-indicator {
+    position: absolute;
+    top: -60px;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    z-index: 10;
+}
+
+.pull-indicator.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.pull-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+}
+
+.pull-content i {
+    color: var(--primary);
+}
+
+/* Touch-optimized scrolling for chat messages */
+#chat-messages {
+    -webkit-overflow-scrolling: touch;
+    /* Disable smooth scroll on mobile - can interfere with manual scrolling */
+    scroll-behavior: auto;
+    overscroll-behavior: contain;
+    /* Disable scroll snap on mobile - can interfere with free scrolling */
+    scroll-snap-type: none;
+    position: relative;
+    /* Ensure the message scroller can grow enough to clear sticky/flow input */
+    min-height: 200px;
+    flex: 1 1 auto;
+    /* Normal mode: flexbox handles spacing (composer is in flow) */
+    /* Focus mode: JS sets --chat-input-h when composer becomes fixed */
+    padding-bottom: 1.25rem;
+}
+
+/* Mobile-specific improvements (removed aggressive height constraints) */
+@media (max-width: 768px) {
+    #chat-messages {
+        /* Gentle minimum height - don't force full viewport */
+        min-height: 300px;
+        /* Ensure flex grows properly on mobile */
+        flex: 1 1 auto;
+    }
+}
+
+/* Message bubbles - disable scroll snap for mobile */
+.message-bubble {
+    /* Disable scroll snap - can interfere with mobile scrolling */
+    scroll-snap-align: none;
+}
+
+/* Momentum scrolling improvements */
+#chat-messages::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+}
+
+/* Mobile-specific pull-to-refresh enhancements */
+@media (max-width: 767px) {
+    .pull-indicator {
+        height: 80px;
+        top: -80px;
+    }
+    
+    .pull-content {
+        font-size: 1rem;
+    }
+    
+    /* Enhanced touch feedback */
+    #chat-messages {
+        touch-action: pan-y;
+    }
+    
+    /* Better pull gesture feedback */
+    .pull-indicator {
+        background: linear-gradient(to bottom, var(--background), transparent);
+    }
+}
+
+/* 4.2 Enhanced Mobile Scrolling Performance */
+@media (max-width: 767px) {
+    /* Optimize scrolling performance */
+    #chat-messages {
+        will-change: scroll-position;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+    
+    /* Smooth momentum scrolling */
+    #chat-messages {
+        -webkit-overflow-scrolling: touch;
+        /* scroll-behavior: auto is set globally above - manual scrolling works better */
+    }
+    
+    /* Better scroll snap for messages */
+    .message-bubble {
+        scroll-snap-align: start;
+        margin-bottom: 1rem;
+    }
+    
+    /* Optimize pull-to-refresh animation */
+    .pull-indicator {
+        will-change: transform, opacity;
+        transform: translateZ(0);
+    }
+}
+
+/* 4.3 Room Actions Dropdown Styles */
+.room-actions-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px; /* Touch-friendly target */
+}
+
+.dropdown-toggle:hover {
+    background: var(--primary/90);
+    transform: translateY(-1px);
+}
+
+.dropdown-toggle:active {
+    transform: translateY(0);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 160px;
+    width: fit-content;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: all 0.2s ease;
+    z-index: 9998;
+    margin-top: 0.5rem;
+    display: none;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.dropdown-menu.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: var(--foreground);
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+    font-size: 0.875rem;
+    min-height: 44px; /* Touch-friendly target */
+}
+
+.dropdown-item:hover {
+    background: var(--muted);
+}
+
+.dropdown-item.text-red-600 {
+    color: #dc2626;
+}
+
+.dropdown-item.text-red-600:hover {
+    background: #fef2f2;
+}
+
+.dropdown-item.text-primary {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.dropdown-item.text-primary:hover {
+    background: var(--primary/5);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.5rem 0;
+}
+
+/* Mobile optimizations for dropdown */
+@media (max-width: 767px) {
+    .dropdown-menu {
+        min-width: 180px;
+        max-width: 280px;
+        width: fit-content;
+        max-height: 60vh;
+        overflow-y: auto;
+        z-index: 9998;
+    }
+    
+    .dropdown-toggle {
+        width: 100%;
+        justify-content: center;
+        padding: 1rem;
+        font-size: 1rem;
+    }
+    
+    .dropdown-item {
+        padding: 1rem;
+        font-size: 1rem;
+    }
+    
+    /* Force dropdown to be visible when open */
+    .dropdown-menu.open {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+    }
+}
+
+/* Dark mode support */
+.dark .dropdown-menu {
+    background: var(--card);
+    border-color: var(--border);
+}
+
+.dark .dropdown-item:hover {
+    background: var(--muted);
+}
+
+.dark .dropdown-item.text-red-600:hover {
+    background: rgba(220, 38, 38, 0.1);
+}
+
+.dark .dropdown-item.text-primary:hover {
+    background: var(--primary/10);
+}
+
+/* 4.4 Room Layout Improvements */
+.chat-card {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.chat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chat-card a {
+    text-decoration: none;
+}
+
+.chat-card h4 a:hover {
+    color: var(--primary);
+}
+
+/* Quick Stats Improvements */
+.quick-stats {
+    background: linear-gradient(135deg, var(--card) 0%, var(--background) 100%);
+}
+
+/* Room Header Improvements */
+.room-header h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-bottom: 0.5rem;
+}
+
+.room-header .room-description {
+    font-size: 1.1rem;
+    color: var(--muted-fg-50);
+    margin-bottom: 1rem;
+}
+
+.room-header .room-goals {
+    background: var(--primary/5);
+    border-left: 4px solid var(--primary);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.room-header small {
+    color: var(--muted-fg-50);
+    font-size: 0.875rem;
+}
+
+/* Mobile optimizations for new layout */
+@media (max-width: 767px) {
+    .room-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .grid.grid-cols-1.lg\:grid-cols-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .chat-card {
+        margin-bottom: 1rem;
+    }
+    
+    .flex.items-start.justify-between {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .room-actions-dropdown {
+        align-self: flex-start;
+        margin-left: 0;
+    }
+}
+
+/* 4.5 Chat-Centric Layout Styles */
+.chat-hero-section {
+    margin-bottom: 2rem;
+}
+
+.chat-card-large {
+    transition: all 0.2s ease;
+    cursor: pointer;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-card-large:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.chat-card-large a {
+    text-decoration: none;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-card-large h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.unread-badge {
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 20px;
+}
+
+/* Expandable Sections */
+.expandable-section {
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.expandable-header {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+.expandable-header:hover {
+    background: var(--muted/30);
+}
+
+.expandable-content {
+    border-top: 1px solid var(--border);
+    transition: all 0.3s ease;
+}
+
+.expandable-content.hidden {
+    display: none;
+}
+
+/* Stats Items */
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+    background: var(--muted/20);
+    border-radius: 8px;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--muted-fg-40);
+}
+
+/* Responsive Grid for Chat Cards */
+@media (max-width: 640px) {
+    .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3.xl\:grid-cols-4 {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+    .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3.xl\:grid-cols-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3.xl\:grid-cols-4 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1025px) {
+    .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3.xl\:grid-cols-4 {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Improved Button Styles */
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+/* Empty State Improvements */
+.text-center.py-16 {
+    padding: 4rem 2rem;
+}
+
+.text-center.py-16 i {
+    opacity: 0.5;
+}
+
+/* Icon Colors for Sections */
+.text-yellow-600 {
+    color: #ca8a04;
+}
+
+.text-blue-600 {
+    color: #2563eb;
+}
+
+.text-green-600 {
+    color: #16a34a;
+}
+
+/* 4.6 Improved Room Layout Styling */
+.room-header h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-bottom: 0.75rem;
+}
+
+.room-header .room-description {
+    font-size: 1.1rem;
+    color: var(--muted-fg-50);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.room-header .room-goals {
+    background: var(--primary/5);
+    border-left: 4px solid var(--primary);
+    padding: 1rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+    margin-bottom: 1rem;
+}
+
+.room-header .room-goals p:first-child {
+    color: var(--foreground);
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.room-header .room-goals p:last-child {
+    color: var(--muted-fg-50);
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.room-header small {
+    color: var(--muted-fg-50);
+    font-size: 0.875rem;
+}
+
+/* Room Actions Button Styling */
+.room-actions-dropdown {
+    position: relative;
+    z-index: 10;
+    overflow: visible !important;
+}
+
+/* Ensure dropdown container has proper positioning context */
+.relative {
+    position: relative;
+    overflow: visible !important;
+}
+
+/* Ensure dropdown is always visible when open */
+.dropdown-menu.open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
+.room-actions-dropdown .btn-outline {
+    background: var(--background);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.room-actions-dropdown .btn-outline:hover {
+    background: var(--muted);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.room-actions-dropdown .btn-outline:active {
+    transform: translateY(1px);
+}
+
+/* Simple Settings Icon Button */
+.settings-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure dropdown container doesn't clip content */
+.relative {
+    overflow: visible !important;
+}
+
+/* Ensure dropdown container doesn't clip content */
+.relative {
+    overflow: visible !important;
+}
+
+.settings-icon-btn:hover {
+    background: var(--muted);
+    color: var(--foreground);
+    transform: scale(1.05);
+}
+
+.settings-icon-btn:active {
+    transform: scale(0.95);
+}
+
+.settings-icon-btn i {
+    transition: transform 0.2s ease;
+}
+
+.settings-icon-btn:hover i {
+    transform: rotate(90deg);
+}
+
+/* Improved Section Spacing */
+.bg-card.border.border-border.rounded-lg.p-6.mb-8 {
+    margin-bottom: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Chat Cards Improved Styling */
+.chat-card-large {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.chat-card-large::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--primary/70));
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.chat-card-large:hover::before {
+    opacity: 1;
+}
+
+.chat-card-large:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary/30);
+}
+
+.chat-card-large a {
+    text-decoration: none;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-card-large h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--foreground);
+    margin-bottom: 0.5rem;
+}
+
+.chat-card-large h3:hover {
+    color: var(--primary);
+}
+
+/* Empty State Improvements */
+.text-center.py-16 {
+    padding: 4rem 2rem;
+    background: var(--muted/20);
+    border-radius: 0.75rem;
+    border: 2px dashed var(--border);
+}
+
+.text-center.py-16 i {
+    opacity: 0.5;
+    color: var(--muted-fg-50);
+}
+
+.text-center.py-16 h3 {
+    color: var(--foreground);
+    margin-bottom: 0.5rem;
+}
+
+.text-center.py-16 p {
+    color: var(--muted-fg-50);
+    margin-bottom: 1.5rem;
+}
+
+/* Section Headers Improved */
+.bg-card.border.border-border.rounded-lg.p-6.mb-8 h2 {
+    color: var(--foreground);
+    font-weight: 700;
+    margin-bottom: 0;
+}
+
+.bg-card.border.border-border.rounded-lg.p-6.mb-8 h2 i {
+    color: var(--primary);
+}
+
+/* Mobile Responsive Improvements */
+@media (max-width: 767px) {
+    .room-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .room-actions-dropdown {
+        margin-left: 1rem;
+    }
+    
+    .room-actions-dropdown .settings-icon-btn {
+        padding: 0.375rem;
+        min-width: 2.25rem;
+        min-height: 2.25rem;
+    }
+    
+    .room-actions-dropdown .settings-icon-btn i {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+    
+    .flex.items-start.justify-between {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .room-actions-dropdown {
+        align-self: flex-end;
+        margin-left: 0;
+    }
+    
+    .chat-card-large {
+        padding: 1rem;
+        min-height: 140px;
+    }
+    
+    .chat-card-large h3 {
+        font-size: 1.125rem;
+    }
+}
+
+/* Global card background - applies to all screen sizes */
+.bg-card {
+  background-color: hsl(var(--card)) !important;
+}
+
+/* Forced neutral tiers for room cards to override legacy colors */
+.bg-card .text-muted-foreground { color: var(--muted-fg-50) !important; }
+.bg-card .text-xs.text-muted-foreground { color: var(--muted-fg-40) !important; }
+.bg-card .group-size-info .text-muted-foreground { color: var(--muted-fg-40) !important; }
+.bg-card p.text-sm.text-muted-foreground { color: var(--muted-fg-50) !important; }
+
+/* ===================================
+   Sidebar Accordion Components
+   Phase 1: Collapsible Tools Section
+   Added: October 28, 2025
+   Polished: Per user feedback
+   =================================== */
+
+.sidebar-section {
+    margin: 0 0 1.25rem 0;  /* 20px - Tighter section spacing */
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;  /* Softer edges */
+}
+
+/* Remove default details marker (browser triangle/caret) */
+.sidebar-section summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Hide browser default markers completely - GLOBAL for all details in sidebar */
+.chat-sidebar summary::marker,
+.chat-sidebar summary::-webkit-details-marker {
+    content: '' !important;
+    display: none !important;
+}
+
+/* Ensure all details elements in sidebar hide markers */
+.chat-sidebar details > summary::marker,
+.chat-sidebar details > summary::-webkit-details-marker {
+    content: '' !important;
+    display: none !important;
+}
+
+/* Summary bar styling - breathing room + polish */
+.sidebar-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;  /* Consistent padding */
+    border-radius: 0.75rem;
+    background: transparent;
+    transition: background-color 0.2s ease;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+.sidebar-summary:hover {
+    background: hsl(var(--muted) / 0.5);
+}
+
+.sidebar-summary:active {
+    background: hsl(var(--muted) / 0.8);
+}
+
+/* Card feel when expanded - enhanced visibility */
+.sidebar-section[open] {
+    background: hsl(var(--card) / 0.95);
+    box-shadow: 0 6px 16px rgb(15 23 42 / 0.1);
+}
+
+/* Chevron rotation animation */
+.sidebar-summary .chevron {
+    margin-left: auto;
+    transition: transform 0.2s ease;
+    color: hsl(var(--muted-foreground));
+}
+
+.sidebar-section[open] .sidebar-summary .chevron {
+    transform: rotate(180deg);
+}
+
+/* Panel content */
+.sidebar-panel {
+    padding: 0 1rem 1rem 1rem;
+    background: transparent;
+}
+
+/* Custom focus state - keyboard friendly, works in Safari */
+.sidebar-summary:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+.sidebar-summary:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3);
+}
+
+.sidebar-summary:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Constrain long lists inside panels (for future phases) */
+.sidebar-panel .scrollable-list {
+    max-height: 300px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile: Ensure details doesn't conflict with drawer */
+@media (max-width: 768px) {
+    .sidebar-section {
+        /* Keep simple - no transforms that create stacking contexts */
+        transform: none;
+    }
+    
+    .sidebar-summary {
+        /* Larger tap target on mobile */
+        padding: 1.25rem 1rem;
+    }
+}
+
+/* Count badges in accordion summaries */
+.sidebar-summary .badge {
+    margin-left: auto;
+    margin-right: 0.5rem;
+    padding: 0.125rem 0.5rem;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+/* ===================================
+   Tool Card Components
+   Phase 3: Unified tool headers
+   Added: October 31, 2025
+   =================================== */
+
+.tool-stack { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.625rem;  /* 10px - Compact spacing for related tools */
+}
+
+.tool-card {
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    background: hsl(var(--card));
+    padding: 0.75rem;  /* 12px - compact card padding */
+    box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
+}
+
+.tool-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;  /* match reduced padding */
+}
+
+.tool-card__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.tool-card__meta {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.tool-card__chevron {
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.tool-card__chevron:hover {
+    background: hsl(var(--muted) / 0.5);
+}
+
+.tool-card__chevron:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    background: hsl(var(--muted) / 0.3);
+}
+
+.tool-card__chevron:focus:not(:focus-visible) {
+    outline: none;
+}
+
+.tool-card__chevron[aria-expanded='true'] { 
+    transform: rotate(180deg); 
+}
+
+.tool-card__body { 
+    font-size: 0.85rem; 
+    color: hsl(var(--foreground)); 
+}
+
+/* Mobile: Larger tap targets + tighter spacing */
+@media (max-width: 768px) {
+    .tool-card__chevron {
+        width: 2.75rem;  /* 44px minimum tap target */
+        height: 2.75rem;
+    }
+    
+    .tool-stack {
+        gap: 0.5rem;  /* 8px - Even tighter on mobile */
+    }
+    
+    .sidebar-section {
+        margin-bottom: 1.25rem;  /* Match desktop 20px */
+    }
+}
+
+/* Hide duplicate summary in tone component (card header shows title) */
+/* Use sr-only pattern to keep accessible for screen readers */
+#tone-card .tool-card__body > details > summary {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Tone slider body spacing improvements */
+#tone-card .tool-card__body {
+    padding-top: 0.5rem;
+}
+
+#tone-card .tool-card__body > details > div {
+    /* Inner content padding */
+    padding: 0.75rem;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 0.5rem;
+}
+
+/* Slider spacing */
+#tone-card input[type="range"] {
+    margin: 0.75rem 0;
+}
+
+/* Labels alignment */
+#tone-card .flex.justify-between {
+    margin-bottom: 0.5rem;
+}
+
+/* Save button spacing */
+#tone-card button[id*="save"] {
+    margin-top: 0.75rem;
+}
+
+/* Tip text spacing */
+#tone-card p.text-\\[11px\\] {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid hsl(var(--border) / 0.3);
+}
+
+/* Chat list in Other Chats section */
+.chat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;  /* 8px - Tight list spacing */
+}
