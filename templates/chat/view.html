@@ -1,0 +1,698 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - {{ chat.title }}{% endblock %}
+{% block extra_css %}
+<style>
+  /* Minimal Focus Mode: hides chrome to maximize chat space */
+  body.focus-mode > header, body.focus-mode header { display: none !important; }
+  body.focus-mode .navigation-breadcrumb { display: none !important; }
+  body.focus-mode .chat-sidebar { display: none !important; }
+  body.focus-mode .system-instructions { display: none !important; }
+  body.focus-mode .chat-header { padding-top: 6px; padding-bottom: 6px; }
+  /* Strengthen focus mode to reclaim full viewport */
+  body.focus-mode > footer, body.focus-mode footer { display: none !important; }
+  body.focus-mode main { padding: 0 !important; margin: 0 !important; }
+  body.focus-mode, body.focus-mode html { height: 100%; }
+  body.focus-mode .chat-layout, body.focus-mode .chat-container, body.focus-mode .chat-main { height: 100vh !important; }
+  /* Ensure input is visible in focus mode on desktop */
+  body.focus-mode .chat-input-container { position: fixed !important; left: 0; right: 0; bottom: 0; z-index: 10000; display: block !important; }
+  /* Padding for #chat-messages in focus mode is handled dynamically via JS */
+
+  /* Chat input glass effect handled by components.css; template no longer overrides styling */
+
+  /* ============================================ */
+  /* SAFE HARDENING - No behavior change          */
+  /* ============================================ */
+  /* Prevent hidden overlays from eating taps */
+  /* Sidebar interaction management */
+  /* Desktop: sidebar always visible and interactive */
+  .chat-sidebar { 
+    pointer-events: auto;  /* Default: interactive */
+  }
+  
+  /* Mobile: sidebar hidden by default, only interactive when .open */
+  @media (max-width: 768px) {
+    .chat-sidebar:not(.open) { 
+      pointer-events: none;  /* Hidden sidebar cannot capture touches */
+    }
+    .chat-sidebar.open { 
+      pointer-events: auto;  /* Open sidebar is interactive */
+    }
+  }
+  /* Padding now managed by ResizeObserver via --chat-input-h CSS variable */
+  /* See components.css:1741 for the CSS variable fallback andfor JS */
+  #chat-messages {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+  /* Pin toggle buttons inherit font/color for consistent styling */
+  .pin-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.75rem;     /* Match text-xs */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    opacity: 1 !important;         /* Override parent .message-timestamp opacity: 0.7 */
+    font-weight: 600 !important;   /* Match footer links, force override */
+    transition: color 0.15s ease;
+    /* Let text-muted-foreground set color instead of inherit */
+  }
+  .pin-toggle:hover,
+  .pin-toggle:focus-visible {
+    color: inherit;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Navigation Breadcrumb -->
+<div class="navigation-breadcrumb px-4 pt-4">
+  <a href="{{ url_for('room.room_crud.index') }}" class="breadcrumb-link">
+    <i data-lucide="home" class="w-4 h-4"></i>
+    Home
+  </a>
+  <span class="breadcrumb-separator">/</span>
+  <a href="{{ url_for('room.room_crud.view_room', room_id=room.id) }}" class="breadcrumb-link">
+    <i data-lucide="users" class="w-4 h-4"></i>
+    {{ room.name }}
+  </a>
+  <span class="breadcrumb-separator">/</span>
+  <span class="breadcrumb-current">{{ chat.title }}</span>
+  <span class="text-xs text-muted-foreground ml-2">
+    — Mode: {{ modes[chat.mode].label if modes.get(chat.mode) else chat.mode|title }}
+  </span>
+</div>
+
+<div class="chat-layout">
+<div class="flex bg-background chat-container h-full"
+     data-chat-id="{{ chat.id }}"
+     data-room-id="{{ room.id }}"
+     data-chat-mode="{{ chat.mode }}"
+     data-mode-order='{{ mode_order|tojson }}'
+     data-mode-labels='{{ mode_labels|tojson }}'
+     data-mode-map='{{ room_chat_map|tojson }}'>
+    <!-- Sidebar -->
+    <div class="w-80 chat-sidebar flex flex-col h-full max-h-full">
+        <!-- Header -->
+        <div class="p-4 border-b border-border">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="flex items-center gap-2">
+                    <i data-lucide="message-circle" class="w-5 h-5"></i>
+                    {{ room.name }}
+                </h2>
+                <a href="{{ url_for('room.room_crud.view_room', room_id=room.id) }}" 
+                   class="text-sm text-muted-foreground hover:text-foreground">
+                    Back to Room
+                </a>
+            </div>
+            
+            <!-- Chat Context (Always Visible) -->
+            <div class="mt-3 pt-3 border-t border-border">
+                <!-- System Instructions Dropdown -->
+                <details class="mt-1 system-instructions">
+                    <summary class="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground flex items-center justify-between gap-2">
+                        <span class="flex items-center gap-2">
+                            🤖 AI Assistant Role
+                        </span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 chevron text-muted-foreground"></i>
+                    </summary>
+                    <div class="mt-2 p-3 bg-muted rounded-md text-xs system-instructions">
+                        <!-- Mode Label -->
+                        <div class="text-xs font-semibold text-primary mb-2 pb-2 border-b border-border/50">
+                            Mode: {{ modes[chat.mode].label if modes.get(chat.mode) else chat.mode|title }}
+                        </div>
+                        
+                        <!-- System Prompt -->
+                        {% if chat.mode in modes %}
+                            {{ modes[chat.mode].prompt }}
+                        {% else %}
+                            <em>Mode: {{ chat.mode }}</em><br><br>
+                            You are a collaborative AI assistant helping with {{ chat.mode.lower() }}. 
+                            I'll guide you through the learning process by asking thoughtful questions 
+                            and helping you develop your skills step by step.
+                        {% endif %}
+                    </div>
+                </details>
+                
+
+            </div>
+        </div>
+
+        <!-- Tools Section (Collapsible) -->
+        <details class="sidebar-section" data-section="tools" open>
+            <summary class="sidebar-summary">
+                <i data-lucide="wand-2" class="w-5 h-5"></i>
+                <span class="flex-1 flex flex-col gap-0.5">
+                    <span class="font-medium">Tools</span>
+                    <span class="text-xs text-muted-foreground summary-meta">
+                        Tone: <span id="tone-summary">Not set</span> · 
+                        Progress: <span id="progress-summary">Not assessed</span>
+                    </span>
+                </span>
+                <i data-lucide="chevron-down" class="w-4 h-4 chevron"></i>
+            </summary>
+            <div class="sidebar-panel">
+                <div class="tool-stack">
+                    <!-- 1. Learning Progress Card -->
+                    <section class="tool-card" id="progress-card">
+                        <div class="tool-card__header">
+                            <div class="tool-card__title">
+                                <i data-lucide="activity" class="w-4 h-4"></i>
+                                Learning Progress
+                            </div>
+                            <button type="button" class="tool-card__chevron" aria-expanded="false" aria-controls="progress-body" onclick="toggleToolCard(this, 'progress-body')">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <div class="tool-card__body" id="progress-body" hidden>
+                            <button id="assess-progress-btn" 
+                                    class="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+                                    onclick="assessLearningProgress()">
+                                🔍 Assess Progress
+                            </button>
+                            
+                            <!-- Progress Status Display -->
+                            <div id="progress-status" class="hidden">
+                                <div id="progress-content" class="p-3 rounded-md text-xs">
+                                    <!-- Progress content will be populated by JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Loading State -->
+                            <div id="progress-loading" class="hidden">
+                                <div class="p-3 rounded-md text-xs text-muted-foreground">
+                                    <div class="flex items-center gap-2">
+                                        <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                                        Analyzing your progress...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- 2. Pinned Items Card -->
+                    {% include 'chat/_pins_sidebar.html' %}
+                    
+                    <!-- 3. Document Generation Card (injected via restore-document-generation.js) -->
+                    <div id="doc-gen-mount"></div>
+                    
+                    <!-- 4. Tone & Critique Card (injected via base.html) -->
+                    <div id="tone-critique-mount"></div>
+                    <!-- 5. Library Tool Card -->
+                    <section class="tool-card" id="library-card">
+                        <div class="tool-card__header">
+                            <div class="tool-card__title">
+                                <i data-lucide="book-open" class="w-4 h-4"></i>
+                                Library
+                            </div>
+                            <button type="button" class="tool-card__chevron" aria-expanded="false" aria-controls="library-body" onclick="toggleToolCard(this, 'library-body')">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <div class="tool-card__body" id="library-body" hidden>
+                            <div class="space-y-4">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-medium text-muted-foreground">Storage</label>
+                                    <div class="relative h-10 bg-white/80 dark:bg-gray-800/80 rounded-full overflow-hidden border border-border/30" style="backdrop-filter: blur(4px);">
+                                        <div id="storage-bar" class="absolute inset-y-0 left-0 rounded-full transition-all duration-500" style="width: 0%; background: #b4e380;"></div>
+                                        <div class="absolute inset-0 flex items-center px-4">
+                                            <span id="storage-percentage" class="text-lg font-bold text-foreground relative z-10">0%</span>
+                                        </div>
+                                    </div>
+                                    <div id="storage-warning" class="hidden text-xs text-red-600 font-medium">⚠️ Storage full! Remove documents to free up space.</div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-medium text-muted-foreground">Upload Document</label>
+                                    <div class="flex gap-2">
+                                        <input type="file" id="library-file-input" accept=".pdf,.docx,.txt" class="hidden">
+                                        <button onclick="document.getElementById('library-file-input').click()" class="flex-1 px-3 py-2 text-xs font-bold bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors flex items-center justify-center gap-2">
+                                            <i data-lucide="upload" class="w-3 h-3"></i>
+                                            Choose File
+                                        </button>
+                                    </div>
+                                    <div id="library-upload-status" class="text-xs text-muted-foreground hidden"></div>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-xs font-medium text-muted-foreground">Uploaded Documents</label>
+                                        <button onclick="refreshLibraryDocuments()" class="text-xs text-primary hover:text-primary/80">
+                                            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                                        </button>
+                                    </div>
+                                    <div id="library-documents-list" class="space-y-2">
+                                        <p class="text-xs text-muted-foreground">No documents uploaded yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                </div>
+            </div>
+        </details>
+
+        <!-- Participants Section (Collapsible) -->
+        <details class="sidebar-section" data-section="members" open>
+            <summary class="sidebar-summary">
+                <i data-lucide="users" class="w-5 h-5"></i>
+                <span>Participants</span>
+                <span class="badge">{{ (room_members|length) if room_members else 0 }}</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 chevron"></i>
+            </summary>
+            <div class="sidebar-panel">
+                <!-- Room Members -->
+                <div class="overflow-y-auto">
+                    <h4 class="text-sm font-medium mb-3">Room Members</h4>
+                    {% if room_members %}
+                    <div class="member-list">
+                        {% for member in room_members %}
+                        {% set color_class = 'avatar-color-' ~ ((member.id % 6) + 1) %}
+                        <div class="member-item">
+                            <div class="member-avatar {{ color_class }}">
+                                <span class="avatar-text">
+                                    {% if ' ' in member.display_name %}
+                                        {{ member.display_name.split(' ')[0][0] }}{{ member.display_name.split(' ')[1][0] }}
+                                    {% else %}
+                                        {{ member.display_name[:2] }}
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="member-info">
+                                <p class="member-name">{{ member.display_name }}</p>
+                            </div>
+                            <div class="member-actions">
+                                <a href="{{ url_for('auth.profile') }}" 
+                                   class="member-action-btn primary" title="View Profile">
+                                    👤
+                                </a>
+                                <button class="member-action-btn" title="Message (Coming Soon)" disabled>
+                                    💬
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-muted-foreground">No members found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+
+        <!-- Other Chats Section (Collapsible) -->
+        <details class="sidebar-section" data-section="other-chats">
+            <summary class="sidebar-summary">
+                <i data-lucide="messages-square" class="w-5 h-5"></i>
+                <span>Other Chats</span>
+                <span class="badge">{{ (other_chats|length) if other_chats else 0 }}</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 chevron"></i>
+            </summary>
+            <div class="sidebar-panel">
+                <!-- Pin Chat CTA (when ≥3 shared pins) -->
+                {% if shared_pins|length >= 3 %}
+                <div class="pin-chat-cta-prominent mb-4 p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-md">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white">
+                            <i data-lucide="pin" class="w-5 h-5"></i>
+                            <span class="font-medium">{{ shared_pins|length }} Shared Pins</span>
+                        </div>
+                        <button type="button" 
+                                class="pin-chat-start-btn px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1.5"
+                                data-room-id="{{ room.id }}"
+                                data-pin-count="{{ shared_pins|length }}">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            New from Pins
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Chat List -->
+                <div class="overflow-y-auto">
+                    <h4 class="text-sm font-medium mb-3">Other Chats</h4>
+                    {% if other_chats %}
+                    
+                    {# Count pin chats for section header #}
+                    {% set pin_chat_count = namespace(value=0) %}
+                    {% for c in other_chats %}
+                        {% if c.id in pin_chat_ids %}
+                            {% set pin_chat_count.value = pin_chat_count.value + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {# Check if there are regular chats #}
+                    {% set has_regular = namespace(value=false) %}
+                    {% for other_chat in other_chats %}
+                        {% if other_chat.id not in pin_chat_ids %}
+                            {% set has_regular.value = true %}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {# Regular Chats #}
+                    {% if has_regular.value %}
+                    <div class="chat-list space-y-2 mb-4">
+                        {% for other_chat in other_chats %}
+                        {% if other_chat.id not in pin_chat_ids %}
+                        <a href="{{ url_for('chat.view_chat', chat_id=other_chat.id) }}" 
+                           class="block p-3 rounded-lg border border-border hover:bg-muted transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <h5 class="font-medium text-sm truncate">{{ other_chat.title }}</h5>
+                                    <p class="text-xs text-muted-foreground">{{ modes[other_chat.mode].label if modes.get(other_chat.mode) else other_chat.mode|title }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ other_chat.created_at.strftime('%b %d, %Y') }}</p>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <span class="text-xs text-muted-foreground">{{ other_chat.messages|length }} msgs</span>
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-muted-foreground"></i>
+                                </div>
+                            </div>
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    {# Pin-based Chats (grouped at bottom) #}
+                    {% if pin_chat_count.value > 0 %}
+                    <div class="pin-chats-group">
+                        <div class="flex items-center gap-2 mb-2 pt-2 border-t border-border">
+                            <i data-lucide="pin" class="w-4 h-4 text-indigo-500"></i>
+                            <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400">Pin-based Chats</span>
+                            <span class="text-xs text-muted-foreground">({{ pin_chat_count.value }})</span>
+                        </div>
+                        <div class="chat-list space-y-2">
+                            {% for other_chat in other_chats %}
+                            {% if other_chat.id in pin_chat_ids %}
+                            {% set pin_info = pin_chat_info.get(other_chat.id, {}) %}
+                            <a href="{{ url_for('chat.view_chat', chat_id=other_chat.id) }}" 
+                               class="block p-3 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <h5 class="font-medium text-sm truncate">{{ other_chat.title }}</h5>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded text-xs">
+                                                <i data-lucide="pin" class="w-3 h-3"></i>
+                                                {{ pin_info.get('pin_count', '?') }} pins
+                                            </span>
+                                            <span class="text-xs text-muted-foreground">{{ other_chat.created_at.strftime('%b %d') }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-xs text-muted-foreground">{{ other_chat.messages|length }} msgs</span>
+                                        <i data-lucide="chevron-right" class="w-4 h-4 text-muted-foreground"></i>
+                                    </div>
+                                </div>
+                            </a>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if not has_regular.value and pin_chat_count.value == 0 %}
+                    <p class="text-sm text-muted-foreground">No other chats in this room.</p>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-sm text-muted-foreground">No other chats in this room.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+    </div>
+    
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col chat-main relative">
+        <!-- Chat Header -->
+        <div class="p-4 border-b border-border chat-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <!-- Mobile Sidebar Toggle (hidden on desktop) -->
+                    <button id="chat-sidebar-toggle" class="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Toggle sidebar">
+                        <i data-lucide="panel-left" class="w-5 h-5"></i>
+                    </button>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-lg font-medium">{{ chat.title }}</h1>
+                            {% if chat.id in pin_chat_ids %}
+                            {% set current_pin_info = pin_chat_info.get(chat.id, {}) %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium" title="This chat was created from {{ current_pin_info.get('pin_count', '?') }} shared pins">
+                                <i data-lucide="pin" class="w-3 h-3"></i>
+                                {{ current_pin_info.get('pin_count', '?') }} pins
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-muted-foreground">
+                            {{ chat.created_at.strftime('%B %d, %Y') }}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="focus-mode-toggle"
+                            class="text-muted-foreground hover:text-foreground transition-colors text-sm px-2 py-1 rounded-md hover:bg-muted"
+                            title="Toggle Focus Mode">Focus</button>
+                    <a href="{{ url_for('chat.edit_chat', chat_id=chat.id) }}" 
+                       class="text-muted-foreground hover:text-foreground transition-colors"
+                       title="Edit Chat Details">
+                        <i data-lucide="edit" class="w-4 h-4"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="flex-1 overflow-y-auto px-4 py-6 space-y-4" id="chat-messages" data-last-id="{{ messages[-1].id if messages else 0 }}">
+            {# Suggestion banner passed from view #}
+            {% if suggestion %}
+            {% set s = suggestion %}
+            <div class="rounded-md border border-border bg-card px-4 py-3" role="note" aria-live="polite">
+                <div class="text-sm">
+                    You’re making strong progress. Consider moving to the next step:
+                    <a href="{{ s.link }}" class="text-primary hover:text-primary/80 font-semibold">{{ s.next_label }}</a>
+                    <span class="text-muted-foreground">(confidence {{ '%.0f' % (s.confidence * 100) }}%)</span>
+                </div>
+            </div>
+            {% endif %}
+            {% for message in messages %}
+            <div class="flex {% if message.role == 'user' %}justify-end{% else %}justify-start{% endif %}" id="message-{{ message.id }}" data-message-id="{{ message.id }}">
+                <div class="message-bubble {% if message.role == 'user' %}user{% else %}assistant{% endif %}" 
+                     {% if message.role == 'assistant' %}data-truncated="{{ 'true' if message.is_truncated else 'false' }}"{% endif %}>
+                    {% if message.role == 'assistant' %}
+                    <div class="flex items-start gap-3">
+                        <div class="ai-avatar">
+                            AI
+                        </div>
+                        <div class="flex-1">
+                            <div class="message-content">
+                                <p>{{ message.content|markdown|safe }}</p>
+                                <p class="message-timestamp">
+                                    <time class="msg-time" data-ts="{{ (message.timestamp.timestamp())|int }}"></time>
+                                    {% if user %}
+                                    <button type="button" class="text-xs text-muted-foreground hover:text-foreground ml-2" data-toggle-comment data-dialogue="{{ loop.index }}">
+                                        💬 Add Comment
+                                    </button>
+                                    <button type="button" 
+                                            class="text-xs ml-2 pin-toggle" 
+                                            data-pin-message="{{ message.id }}"
+                                            data-pinned="{{ 'true' if message.id in pinned_message_ids else 'false' }}">
+                                        {% if message.id in pinned_message_ids %}
+                                            📌 Unpin
+                                        {% else %}
+                                            Pin
+                                        {% endif %}
+                                    </button>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="flex items-start gap-3">
+                        <div class="flex-1">
+                            <div class="message-content text-right">
+                                <p>{{ message.content|markdown|safe }}</p>
+                                <p class="message-timestamp">
+                                    <time class="msg-time" data-ts="{{ (message.timestamp.timestamp())|int }}"></time>
+                                    {% if user %}
+                                    <button type="button" class="text-xs text-muted-foreground hover:text-foreground ml-2" data-toggle-comment data-dialogue="{{ loop.index }}">
+                                        💬 Add Comment
+                                    </button>
+                                    <button type="button" 
+                                            class="text-xs ml-2 pin-toggle" 
+                                            data-pin-message="{{ message.id }}"
+                                            data-pinned="{{ 'true' if message.id in pinned_message_ids else 'false' }}">
+                                        {% if message.id in pinned_message_ids %}
+                                            📌 Unpin
+                                        {% else %}
+                                            Pin
+                                        {% endif %}
+                                    </button>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% if message.user %}
+                            {% set color_class = 'avatar-color-' ~ ((message.user.id % 6) + 1) %}
+                            <div class="user-avatar {{ color_class }}">
+                                <span class="avatar-text">
+                                    {% if ' ' in message.user.display_name %}
+                                        {{ message.user.display_name.split(' ')[0][0] }}{{ message.user.display_name.split(' ')[1][0] }}
+                                    {% else %}
+                                        {{ message.user.display_name[:2] }}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Comments for this message -->
+                    {% set message_comments = comments|selectattr('dialogue_number', 'equalto', loop.index)|list %}
+                    {% if message_comments %}
+                    <div class="comment-section">
+                        {% for comment in message_comments %}
+                        <div class="comment-item">
+                            <div class="flex items-center justify-between">
+                                <p class="font-medium">{{ comment.user.display_name }}</p>
+                                {% if user and (comment.user_id == user.id or chat.created_by == user.id) %}
+                                <form method="POST" action="{{ url_for('chat.delete_comment', chat_id=chat.id, comment_id=comment.id) }}"
+                                      class="inline">
+                                    <button type="submit" class="text-red-600 hover:text-red-800 text-sm">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            <p class="mt-1">{{ comment.content }}</p>
+                            <p class="text-xs text-muted-foreground mt-1">
+                                {{ comment.timestamp.strftime('%I:%M %p') }}
+                                {% if user %}
+                                <button type="button" 
+                                        class="text-xs ml-2 pin-toggle" 
+                                        data-pin-comment="{{ comment.id }}"
+                                        data-pinned="{{ 'true' if comment.id in pinned_comment_ids else 'false' }}">
+                                    {% if comment.id in pinned_comment_ids %}
+                                        📌 Unpin
+                                    {% else %}
+                                        Pin
+                                    {% endif %}
+                                </button>
+                                {% endif %}
+                            </p>
+                            
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Add Comment Form -->
+                    {% if user %}
+                    <form method="POST" action="{{ url_for('chat.add_comment', chat_id=chat.id) }}" 
+                          class="comment-form" id="comment-form-{{ loop.index }}" style="display: none;">
+                        <input type="hidden" name="dialogue_number" value="{{ loop.index }}">
+                        <textarea name="comment_content" required 
+                                  class="comment-textarea w-full"
+                                  rows="2" placeholder="Add your comment here..."></textarea>
+                        <div class="flex gap-1 mt-1">
+                            <button type="submit" class="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90">
+                                Add
+                            </button>
+                            <button type="button" class="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-muted/80" data-toggle-comment data-dialogue="{{ loop.index }}">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="p-4 border-t border-border chat-input-container">
+        <form method="POST" action="{{ url_for('chat.view_chat', chat_id=chat.id) }}" class="flex flex-col gap-3" id="message-form">
+            <!-- AI Response Toggle -->
+            <div class="flex items-center gap-2 mb-3">
+                <input type="hidden" name="ai_response" value="0">
+                <input type="checkbox" 
+                       id="ai-response-toggle" 
+                       name="ai_response" 
+                       value="1" 
+                       checked
+                       class="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2">
+                <label for="ai-response-toggle" class="text-sm font-medium text-foreground">
+                    🤖 AI Response
+                </label>
+            </div>
+            
+            <div class="flex gap-3 items-end relative">
+                <!-- Tools Menu Button -->
+                <button type="button" 
+                        class="tools-menu-button"
+                        aria-label="Open tools menu"
+                        aria-expanded="false">
+                    <i data-lucide="plus" class="w-5 h-5"></i>
+                </button>
+                
+                <!-- Tools Menu Popup -->
+                <div class="tools-menu-popup hidden" role="menu">
+                    <button type="button" class="tools-menu-item" data-tool="quiz" role="menuitem">
+                        <i data-lucide="file-question" class="w-4 h-4"></i>
+                        <span>Quiz</span>
+                    </button>
+                    <button type="button" class="tools-menu-item" data-tool="flashcards" role="menuitem">
+                        <i data-lucide="layers" class="w-4 h-4"></i>
+                        <span>Flashcards</span>
+                    </button>
+                    <button type="button" class="tools-menu-item" data-tool="mindmap" role="menuitem">
+                        <i data-lucide="network" class="w-4 h-4"></i>
+                        <span>Mind Map</span>
+                    </button>
+                    <button type="button" class="tools-menu-item" data-tool="narrative" role="menuitem">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                        <span>Narrative</span>
+                    </button>
+                </div>
+                
+                <textarea name="content"
+                          placeholder="Type your message..."
+                          class="chat-input chat-textarea flex-1"
+                          required
+                          id="message-input"
+                          rows="1"
+                          autocomplete="off"></textarea>
+                <button type="submit" 
+                        class="send-button"
+                        id="send-button">
+                    <i data-lucide="send" class="w-4 h-4" id="send-icon"></i>
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin hidden" id="loading-icon"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+        <!-- Scroll to Bottom Button (hidden by default) -->
+        <button id="scroll-to-bottom" 
+                class="scroll-to-bottom"
+                onclick="scrollToBottom()"
+                title="Scroll to bottom">
+            <i data-lucide="arrow-down" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Message Input -->
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='js/chat-view.js') }}?v=2025-10-28"></script>
+    <script src="{{ url_for('static', filename='js/pin-toggle.js') }}?v=2025-12-04-inplace"></script>
+    <script src="{{ url_for('static', filename='js/pin-chat.js') }}?v=2025-12-04"></script>
+    <script src="{{ url_for('static', filename='js/library-tool.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/tools-menu.js') }}?v=1.1"></script>
+{% endblock %}
+<!-- PIN OPACITY FIX DEPLOYED 2025-12-01T03:15Z -->

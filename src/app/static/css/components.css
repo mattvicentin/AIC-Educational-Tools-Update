@@ -412,9 +412,14 @@
     0 0 0 1px rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  overflow: hidden;
+  overflow: visible; /* Allow menu to overflow */
   isolation: isolate;
   z-index: 10000;
+}
+
+/* Ensure tools menu container allows overflow */
+.chat-input-container .flex.relative {
+  overflow: visible;
 }
 
 .chat-input-container::before {
@@ -520,6 +525,152 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Ensure parent containers don't clip the menu */
+.chat-input-container form > .flex.relative,
+.chat-input-container .flex.relative {
+  overflow: visible !important;
+}
+
+/* Tools Menu Button */
+.tools-menu-button {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 50% !important;
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  color: #374151 !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 100002 !important; /* Above the popup when button is active */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.tools-menu-button:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tools-menu-button:active {
+  transform: scale(0.95);
+}
+
+.tools-menu-button[aria-expanded="true"] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+/* Tools Menu Popup */
+.tools-menu-popup {
+  position: fixed; /* Use fixed to escape clipping contexts */
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  padding: 0.5rem;
+  min-width: 180px;
+  z-index: 100001 !important; /* Ensure it's above everything - highest priority */
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  animation: toolsMenuFadeIn 0.15s ease-out;
+  /* Position will be set by JavaScript - no default positioning */
+  margin: 0 !important; /* Remove any default margins */
+  box-sizing: border-box;
+}
+
+@keyframes toolsMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tools-menu-popup.hidden {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+.tools-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: transparent;
+  color: #374151;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.tools-menu-item:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.tools-menu-item:active {
+  background: #e5e7eb;
+  transform: scale(0.98);
+}
+
+.tools-menu-item i {
+  flex-shrink: 0;
+  color: #6b7280;
+}
+
+.tools-menu-item:hover i {
+  color: #374151;
+}
+
+/* Dark mode support */
+.dark .tools-menu-button {
+  background: rgba(39, 39, 42, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+}
+
+.dark .tools-menu-button:hover {
+  background: rgba(39, 39, 42, 1);
+}
+
+.dark .tools-menu-popup {
+  background: #1f2937;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.dark .tools-menu-item {
+  color: #e5e7eb;
+}
+
+.dark .tools-menu-item:hover {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.dark .tools-menu-item i {
+  color: #9ca3af;
+}
+
+.dark .tools-menu-item:hover i {
+  color: #d1d5db;
 }
 
 /* Comment System */
