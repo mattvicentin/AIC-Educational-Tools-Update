@@ -103,10 +103,10 @@
         });
 
         // Close on backdrop click
-        const panel = document.getElementById(QUIZ_PANEL_ID);
-        if (panel) {
-            panel.addEventListener('click', (e) => {
-                if (e.target === panel) {
+        const backdrop = document.getElementById('quiz-panel-backdrop');
+        if (backdrop) {
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) {
                     closeQuizPanel();
                 }
             });
@@ -118,11 +118,18 @@
      */
     function openQuizPanel() {
         const panel = document.getElementById(QUIZ_PANEL_ID);
+        const backdrop = document.getElementById('quiz-panel-backdrop');
         if (!panel) {
             console.error('Quiz panel not found');
             return;
         }
 
+        // Show backdrop first
+        if (backdrop) {
+            backdrop.classList.remove('hidden');
+        }
+        
+        // Then show panel
         panel.classList.remove('hidden');
         showStep(QUIZ_STEPS.CONFIG);
         resetQuiz();
@@ -141,9 +148,17 @@
      */
     function closeQuizPanel() {
         const panel = document.getElementById(QUIZ_PANEL_ID);
+        const backdrop = document.getElementById('quiz-panel-backdrop');
+        
         if (panel) {
             panel.classList.add('hidden');
         }
+        
+        // Hide backdrop
+        if (backdrop) {
+            backdrop.classList.add('hidden');
+        }
+        
         resetQuiz();
     }
 

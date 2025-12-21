@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}AI Collab Online{% endblock %}</title>
+    
+    <!-- Tailwind CSS (CDN JIT) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- New Design System CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/globals.css') }}?v=3.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}?v=6.5">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <!-- Your existing styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2.4">
+    
+    <!-- Chat improvements -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat-improvements.css') }}?v=2.2-pins-toolcard">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat-sidebar-improvements.css') }}?v=1.1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat-overrides.css') }}?v=2025-12-04-shared-pins">
+    <!-- chat-input-fixes.js REMOVED - conflicts with ResizeObserver approach in view.html -->
+    <script src="{{ url_for('static', filename='js/chat-accessibility.js') }}?v=1.0"></script>
+    <script src="{{ url_for('static', filename='js/restore-document-generation.js') }}?v=1.0"></script>
+    <script src="{{ url_for('static', filename='js/continue-messages.js') }}?v=1.2"></script>
+    
+    <!-- Inject critique component on all chat pages -->
+    <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!/^\/chat\/\d+/.test(location.pathname)) return;
+      // Critique tool now available for all rooms
+
+      // Create mount point if it doesn't exist
+      let mount = document.getElementById('tone-critique-mount');
+      if (!mount) {
+        const details = document.querySelector('.chat-sidebar details.system-instructions');
+        if (details) {
+          mount = document.createElement('div');
+          mount.id = 'tone-critique-mount';
+          details.insertAdjacentElement('afterend', mount);
+        }
+      }
+      
+      if (!mount) {
+        console.warn('tone control: could not create mount point');
+        return;
+      }
+
+      try {
+        const res = await fetch('/static/components/chat/tone_critique_control.html', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        const html = await res.text();
+        
+        // Wrap fetched HTML in tool-card structure
+        const template = document.createElement('template');
+        template.innerHTML = html.trim();
+        const toneMarkup = template.content.firstElementChild; // existing <details> block
+        
+        // Prepare details element (summary is hidden via CSS)
+        if (toneMarkup?.tagName === 'DETAILS') {
+          toneMarkup.id = 'tone-details';
+          toneMarkup.setAttribute('open', '');  // Keep slider visible when card expands
+          // Summary is already hidden via CSS sr-only pattern
+        }
+        
+        const toneCard = document.createElement('section');
+        toneCard.className = 'tool-card';
+        toneCard.id = 'tone-card';
+        
+        const toneHeader = document.createElement('div');
+        toneHeader.className = 'tool-card__header';
+        toneHeader.innerHTML = `
+          <div class="tool-card__title">
+            <i data-lucide="sliders" class="w-4 h-4"></i>
+            Tone & Critique
+          </div>
+          <button type="button" class="tool-card__chevron" aria-expanded="false" aria-controls="tone-body" onclick="toggleToolCard(this, 'tone-body')">
+            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+          </button>
+        `;
+        
+        const toneBody = document.createElement('div');
+        toneBody.className = 'tool-card__body';
+        toneBody.id = 'tone-body';
+        toneBody.setAttribute('hidden', '');  // Start collapsed
+        toneBody.appendChild(toneMarkup);
+        
+        toneCard.appendChild(toneHeader);
+        toneCard.appendChild(toneBody);
+        
+        mount.replaceChildren(toneCard);
+        
+        if (window.lucide?.createIcons) lucide.createIcons();
+        
+        // Initialize critique tool functionality
+        initToneCritiqueControl();
+      } catch (e) { console.warn('tone control: failed to load component:', e); }
+    });
+
+    // Room 81 check function removed - critique tool now available for all rooms
+
+    function initToneCritiqueControl() {
+      const slider = document.getElementById('critique-slider');
+      const label = document.getElementById('critique-label');
+      const saveBtn = document.getElementById('critique-save');
+      
+      const levelNames = ['', 'Very Supportive', 'Supportive', 'Balanced', 'Critical', 'Very Critical'];
+      
+      if (slider && label) {
+        // Update label when slider changes
+        slider.addEventListener('input', function() {
+          const level = parseInt(this.value);
+          label.textContent = levelNames[level] || 'Balanced';
+        });
+        
+        // Save functionality
+        if (saveBtn) {
+          saveBtn.addEventListener('click', async function() {
+            const level = parseInt(slider.value);
+            const chatId = getChatId();
+            
+            this.textContent = 'Saving...';
+            this.disabled = true;
+            
+            try {
+              sessionStorage.setItem(`chat_${chatId}_critique`, level);
+              
+              // Dispatch tone:change event for summary update
+              document.dispatchEvent(new CustomEvent('tone:change', {
+                detail: { level: level }
+              }));
+              
+              this.textContent = 'Saved!';
+              setTimeout(() => {
+                this.textContent = 'Save';
+                this.disabled = false;
+              }, 1000);
+            } catch (error) {
+              console.error('Save failed:', error);
+              this.textContent = 'Error';
+              setTimeout(() => {
+                this.textContent = 'Save';
+                this.disabled = false;
+              }, 2000);
+            }
+          });
+        }
+        
+        // Initialize summary on load with saved value
+        const chatId = getChatId();
+        const savedLevel = sessionStorage.getItem(`chat_${chatId}_critique`);
+        if (savedLevel) {
+          const level = parseInt(savedLevel);
+          slider.value = level;
+          label.textContent = levelNames[level] || 'Balanced';
+          // Dispatch initial event for summary
+          document.dispatchEvent(new CustomEvent('tone:change', {
+            detail: { level: level }
+          }));
+        }
+      }
+      
+      // Add critique level to message forms
+      const forms = document.querySelectorAll('form[method="POST"]');
+      forms.forEach(form => {
+        const contentField = form.querySelector('textarea[name="content"]');
+        if (contentField) {
+          form.addEventListener('submit', function() {
+            const chatId = getChatId();
+            const level = sessionStorage.getItem(`chat_${chatId}_critique`) || '3';
+            
+            const instructions = getCritiqueInstructions(parseInt(level));
+            
+            let hiddenInput = form.querySelector('#critique-instructions-input');
+            if (!hiddenInput) {
+              hiddenInput = document.createElement('input');
+              hiddenInput.type = 'hidden';
+              hiddenInput.name = 'room81_critique_instructions';
+              hiddenInput.id = 'critique-instructions-input';
+              form.appendChild(hiddenInput);
+            }
+            hiddenInput.value = instructions;
+          });
+        }
+      });
+    }
+
+    function getChatId() {
+      const match = window.location.pathname.match(/\/chat\/(\d+)/);
+      return match ? match[1] : '0';
+    }
+    
+    function getCritiqueInstructions(level) {
+      const instructions = {
+        1: "Be warmly supportive. Praise effort and provide at most two gentle suggestions. Focus on what's working well.",
+        2: "Be friendly and constructive. Balance praise with suggestions. Ask clarifying questions to understand intent.",
+        3: "Be neutral and concise. Give balanced pros and cons. Provide three actionable improvements with examples.",
+        4: "Be rigorous and analytical. Challenge assumptions and require evidence. Rank issues by impact.",
+        5: "Act as an exacting reviewer. Insist on evidence for claims. Provide pointed, actionable edits with no fluff."
+      };
+      return instructions[level] || instructions[3];
+    }
+    </script>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-background text-foreground min-h-screen flex flex-col">
+    <!-- Navigation Header -->
+    <header class="bg-card border-b border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo and Title -->
+                <div class="flex items-center">
+                    <a href="{{ url_for('room.room_crud.index') }}" class="text-2xl font-bold text-foreground hover:text-primary transition-colors">
+                        AI Collab
+                    </a>
+                </div>
+                
+                <!-- Right side: nav + page actions + mobile menu -->
+                <div class="flex items-center gap-3">
+                    <!-- Desktop Navigation Links (hidden on mobile) -->
+                    <nav class="hidden md:flex items-center space-x-4 lg:space-x-8">
+                        {% if user %}
+                            <a href="{{ url_for('room.room_crud.index') }}" class="text-primary hover:text-primary/80 transition-colors relative text-sm sm:text-base">
+                                Home
+                                {% if invitation_count > 0 %}
+                                <span class="absolute -top-2 -right-2 bg-destructive text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                                    {{ invitation_count }}
+                                </span>
+                                {% endif %}
+                            </a>
+                            {% if is_admin %}
+                            <a href="{{ url_for('admin.dashboard') }}" class="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-base">Admin</a>
+                            {% endif %}
+                            <a href="{{ url_for('auth.profile') }}" class="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-base">Profile</a>
+                            <a href="{{ url_for('auth.logout') }}" class="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-base">Logout</a>
+                        {% else %}
+                            <a href="{{ url_for('auth.login') }}" class="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-base">Login</a>
+                            <a href="{{ url_for('auth.register') }}" class="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-base">Register</a>
+                        {% endif %}
+                    </nav>
+
+                    <!-- Page-specific header actions (e.g., Room settings) -->
+                    <div class="flex items-center gap-2">
+                        {% block header_actions %}{% endblock %}
+                    </div>
+
+                    <!-- Mobile Menu Button (hidden on desktop) -->
+                    <button id="mobile-menu-button" class="md:hidden p-2 rounded-md text-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Open mobile menu">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    {# Enhanced flash messages with auto-dismiss and close buttons #}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mt-4 space-y-3" role="status" aria-live="polite" id="flash-messages-container">
+                    {% for category, message in messages %}
+                        {% set bg = 'bg-green-50 border-green-200 text-green-800' if category == 'success' else 'bg-red-50 border-red-200 text-red-800' if category == 'error' else 'bg-blue-50 border-blue-200 text-blue-800' if category == 'info' else 'bg-yellow-50 border-yellow-200 text-yellow-800' %}
+                        {% set dismiss_time = '5000' if category == 'success' else '8000' if category == 'info' else '0' %}
+                        <div class="flash-message rounded-md border {{ bg }} px-4 py-3 text-sm relative flex items-center justify-between" 
+                             data-category="{{ category }}" 
+                             data-auto-dismiss="{{ dismiss_time }}"
+                             style="animation: slideInDown 0.3s ease-out;">
+                            <span class="flex-1 pr-2">{{ message }}</span>
+                            <button type="button" 
+                                    class="flash-close-btn ml-2 p-1 rounded-full hover:bg-black hover:bg-opacity-10 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-current" 
+                                    aria-label="Dismiss message"
+                                    title="Dismiss">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Mobile Navigation Overlay (hidden on desktop) -->
+    <div id="mobile-menu-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden md:hidden">
+        <div id="mobile-menu-panel" class="fixed inset-y-0 right-0 w-80 bg-white/95 backdrop-blur-sm border-l border-border shadow-xl transform translate-x-full transition-transform duration-300 ease-in-out">
+            <div class="flex flex-col h-full">
+                <!-- Mobile Menu Header -->
+                <div class="flex items-center justify-between p-4 border-b border-border">
+                    <h2 class="text-lg font-semibold text-foreground">Menu</h2>
+                    <button id="mobile-menu-close" class="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Close mobile menu">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <!-- Mobile Navigation Links -->
+                <nav class="flex-1 p-4 space-y-4">
+                    {% if user %}
+                        <a href="{{ url_for('room.room_crud.index') }}" class="flex items-center space-x-3 p-3 rounded-lg text-foreground hover:bg-muted transition-colors">
+                            <i data-lucide="home" class="w-5 h-5"></i>
+                            <span class="font-medium">Home</span>
+                            {% if invitation_count > 0 %}
+                            <span class="ml-auto bg-destructive text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                                {{ invitation_count }}
+                            </span>
+                            {% endif %}
+                        </a>
+                        <a href="{{ url_for('auth.profile') }}" class="flex items-center space-x-3 p-3 rounded-lg text-foreground hover:bg-muted transition-colors">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                            <span class="font-medium">Profile</span>
+                        </a>
+                        <a href="{{ url_for('auth.logout') }}" class="flex items-center space-x-3 p-3 rounded-lg text-destructive hover:bg-destructive-light transition-colors">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                            <span class="font-medium">Logout</span>
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('auth.login') }}" class="flex items-center space-x-3 p-3 rounded-lg text-foreground hover:bg-muted transition-colors">
+                            <i data-lucide="log-in" class="w-5 h-5"></i>
+                            <span class="font-medium">Login</span>
+                        </a>
+                        <a href="{{ url_for('auth.register') }}" class="flex items-center space-x-3 p-3 rounded-lg text-foreground hover:bg-muted transition-colors">
+                            <i data-lucide="user-plus" class="w-5 h-5"></i>
+                            <span class="font-medium">Register</span>
+                        </a>
+                    {% endif %}
+                </nav>
+
+                <!-- Mobile Menu Footer -->
+                <div class="p-4 border-t border-border">
+                    <div class="text-sm text-muted-foreground">
+                        <p>AI Collab Online</p>
+                        <p class="text-xs">Collaborative AI-powered writing</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-card border-t border-border mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <!-- Company Info -->
+                <div class="col-span-1 md:col-span-2">
+                    <h3 class="text-lg font-semibold text-foreground mb-3">AI Collab</h3>
+                    <p class="text-muted-foreground text-sm mb-4 max-w-md">
+                        Empowering collaborative learning through AI-assisted writing and structured team projects.
+                    </p>
+                    <div class="flex items-center space-x-4">
+                        <a href="mailto:support@aicollab.app" class="text-muted-foreground hover:text-foreground transition-colors text-sm">
+                            <i data-lucide="mail" class="w-4 h-4 inline mr-1"></i>
+                            Contact Support
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Product Links -->
+                <div>
+                    <h4 class="text-sm font-semibold text-foreground mb-3">Product</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li>
+                            <a href="{{ url_for('about') }}" class="text-muted-foreground hover:text-foreground transition-colors">
+                                About
+                            </a>
+                        </li>
+                        {% if not user %}
+                        <li>
+                            <a href="{{ url_for('auth.register') }}" class="text-muted-foreground hover:text-foreground transition-colors">
+                                Get Started
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li>
+                            <a href="{{ url_for('about') }}" class="text-muted-foreground hover:text-foreground transition-colors">
+                                Features
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                
+                <!-- Legal Links -->
+                <div>
+                    <h4 class="text-sm font-semibold text-foreground mb-3">Legal</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li>
+                            <a href="{{ url_for('about') }}" class="text-muted-foreground hover:text-foreground transition-colors">
+                                Privacy Policy
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('about') }}" class="text-muted-foreground hover:text-foreground transition-colors">
+                                Terms of Service
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('about') }}" class="text-muted-foreground hover:text-foreground transition-colors">
+                                Cookie Policy
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Footer Bottom -->
+            <div class="border-t border-border mt-8 pt-6 flex flex-col sm:flex-row justify-between items-center">
+                <p class="text-muted-foreground text-sm">
+                    © 2025 AI Collab. All rights reserved.
+                </p>
+                <div class="flex items-center space-x-4 mt-4 sm:mt-0">
+                    <span class="text-muted-foreground text-xs">
+                        Made with ❤️ for educators and students
+                    </span>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Initialize Lucide icons -->
+    <script>
+        lucide.createIcons();
+        
+        // (Removed) Forced hamburger hide; rely on Tailwind breakpoints only
+        // function hideHamburgerOnDesktop() {
+        //     const hamburgerButton = document.getElementById('mobile-menu-button');
+        //     if (hamburgerButton && window.innerWidth >= 768) {
+        //         hamburgerButton.style.display = 'none';
+        //         hamburgerButton.style.visibility = 'hidden';
+        //         hamburgerButton.style.opacity = '0';
+        //         hamburgerButton.style.pointerEvents = 'none';
+        //     }
+        // }
+        // hideHamburgerOnDesktop();
+        // window.addEventListener('resize', hideHamburgerOnDesktop);
+    </script>
+
+    <!-- Mobile Menu JavaScript -->
+    <script>
+        // Global CSRF-aware fetch wrapper to prevent 400s on JSON POSTs
+        (function() {
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+            const originalFetch = window.fetch;
+            window.fetch = function(input, init) {
+                init = init || {};
+                const headers = new Headers(init.headers || {});
+                const token = getCookie('csrf_token');
+                if (token && !headers.has('X-CSRFToken') && !headers.has('X-CSRF-Token')) {
+                    headers.set('X-CSRFToken', token);
+                }
+                init.headers = headers;
+                if (typeof init.credentials === 'undefined') {
+                    init.credentials = 'same-origin';
+                }
+                return originalFetch(input, init);
+            };
+        })();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-inject CSRF hidden field into POST forms if missing
+            try {
+                const getCookie = (name) => {
+                    const value = `; ${document.cookie}`;
+                    const parts = value.split(`; ${name}=`);
+                    if (parts.length === 2) return parts.pop().split(';').shift();
+                    return null;
+                };
+                const token = getCookie('csrf_token');
+                if (token) {
+                    document.querySelectorAll('form[method="POST"]').forEach(form => {
+                        if (!form.querySelector('input[name="csrf_token"]')) {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'csrf_token';
+                            input.value = token;
+                            form.prepend(input);
+                        }
+                    });
+                }
+            } catch (e) { /* no-op */ }
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenuClose = document.getElementById('mobile-menu-close');
+            const mobileMenuOverlay = document.getElementById('mobile-menu-overlay');
+            const mobileMenuPanel = document.getElementById('mobile-menu-panel');
+
+            // Debug logging
+            console.log('Mobile menu elements found:', {
+                button: !!mobileMenuButton,
+                close: !!mobileMenuClose,
+                overlay: !!mobileMenuOverlay,
+                panel: !!mobileMenuPanel
+            });
+
+            function openMobileMenu() {
+                console.log('Opening mobile menu');
+                mobileMenuOverlay.classList.remove('hidden');
+                // Use setTimeout to ensure the overlay is visible before animating
+                setTimeout(() => {
+                    mobileMenuPanel.classList.remove('translate-x-full');
+                }, 10);
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeMobileMenu() {
+                console.log('Closing mobile menu');
+                mobileMenuPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    mobileMenuOverlay.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }, 300);
+            }
+
+            // Open mobile menu
+            if (mobileMenuButton) {
+                mobileMenuButton.addEventListener('click', function(e) {
+                    console.log('Mobile menu button clicked');
+                    e.preventDefault();
+                    openMobileMenu();
+                });
+            }
+
+            // Close mobile menu
+            if (mobileMenuClose) {
+                mobileMenuClose.addEventListener('click', function(e) {
+                    console.log('Mobile menu close button clicked');
+                    e.preventDefault();
+                    closeMobileMenu();
+                });
+            }
+
+            // Close mobile menu when clicking overlay
+            if (mobileMenuOverlay) {
+                mobileMenuOverlay.addEventListener('click', function(e) {
+                    if (e.target === mobileMenuOverlay) {
+                        closeMobileMenu();
+                    }
+                });
+            }
+
+            // Close mobile menu on escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && !mobileMenuOverlay.classList.contains('hidden')) {
+                    closeMobileMenu();
+                }
+            });
+
+            // Close mobile menu when window is resized to desktop
+            window.addEventListener('resize', function() {
+                if (window.innerWidth >= 768 && !mobileMenuOverlay.classList.contains('hidden')) {
+                    closeMobileMenu();
+                }
+            });
+
+            // Debug: Log screen size
+            console.log('Current screen width:', window.innerWidth);
+            console.log('Mobile menu should be visible on screens < 768px');
+        });
+
+        // Enhanced Flash Messages with Auto-Dismiss and Close Buttons
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashMessages = document.querySelectorAll('.flash-message');
+            
+            flashMessages.forEach(function(message) {
+                const autoDismissTime = parseInt(message.getAttribute('data-auto-dismiss'));
+                const category = message.getAttribute('data-category');
+                
+                // Add close button functionality
+                const closeBtn = message.querySelector('.flash-close-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                        dismissMessage(message);
+                    });
+                }
+                
+                // Auto-dismiss for success and info messages
+                if (autoDismissTime > 0) {
+                    setTimeout(function() {
+                        dismissMessage(message);
+                    }, autoDismissTime);
+                }
+            });
+            
+            function dismissMessage(messageElement) {
+                // Add fade-out animation
+                messageElement.style.animation = 'slideOutUp 0.3s ease-in forwards';
+                
+                // Remove element after animation
+                setTimeout(function() {
+                    if (messageElement.parentNode) {
+                        messageElement.parentNode.removeChild(messageElement);
+                        
+                        // If no more messages, hide the container
+                        const container = document.getElementById('flash-messages-container');
+                        if (container && container.children.length === 0) {
+                            container.style.display = 'none';
+                        }
+                    }
+                }, 300);
+            }
+        });
+    </script>
+
+    <style>
+        /* Flash message animations */
+        @keyframes slideInDown {
+            from {
+                transform: translate3d(0, -100%, 0);
+                opacity: 0;
+            }
+            to {
+                transform: translate3d(0, 0, 0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOutUp {
+            from {
+                transform: translate3d(0, 0, 0);
+                opacity: 1;
+            }
+            to {
+                transform: translate3d(0, -100%, 0);
+                opacity: 0;
+            }
+        }
+        
+        /* Smooth transitions for flash messages */
+        .flash-message {
+            transition: all 0.3s ease;
+        }
+        
+        .flash-close-btn:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+    </style>
+
+    {% block extra_js %}{% endblock %}
+<!-- base v=2025-09-13T22:00Z deployment sentinel - Enhanced flash messages with auto-dismiss --></body>
+</html>

@@ -1,25 +1,65 @@
-/* Quiz Panel Styles */
+/* Quiz Panel Backdrop */
+.quiz-panel-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 100001;
+  animation: fadeIn 0.2s ease-out;
+}
 
+.quiz-panel-backdrop.hidden {
+  display: none;
+}
+
+/* Quiz Panel Styles */
 .quiz-panel {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 50%;
-  max-width: 800px;
-  min-width: 500px;
-  max-height: 80vh;
+  width: 80%;
+  height: 80%;
+  max-width: 1400px;
+  max-height: 90vh;
+  min-width: 600px;
+  min-height: 500px;
   background: white;
   border-radius: 1rem;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   z-index: 100002;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: slideIn 0.3s ease-out;
 }
 
 .quiz-panel.hidden {
   display: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
 }
 
 .quiz-panel__header {
@@ -431,6 +471,10 @@
 }
 
 /* Dark mode support */
+.dark .quiz-panel-backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
 .dark .quiz-panel {
   background: #1f2937;
   color: #e5e7eb;
@@ -486,9 +530,10 @@
 /* Responsive */
 @media (max-width: 768px) {
   .quiz-panel {
-    width: 90%;
-    min-width: auto;
-    max-height: 90vh;
+    width: 95%;
+    height: 90%;
+    min-width: unset;
+    min-height: unset;
   }
 }
 
