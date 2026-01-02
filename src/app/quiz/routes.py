@@ -105,8 +105,106 @@ def assemble_quiz_context(chat_id: int, context_mode: str, library_doc_ids: Opti
     return "\n\n".join(context_parts)
 
 
-def generate_quiz_prompt(context: str, question_count: int, instructions: Optional[str] = None) -> str:
+def calculate_mixed_distribution(question_count: int) -> Dict[str, int]:
+    """Calculate Easy/Average/Hard distribution for Mixed difficulty."""
+    if question_count == 1:
+        return {'easy': 0, 'average': 1, 'hard': 0}
+    elif question_count == 2:
+        return {'easy': 1, 'average': 1, 'hard': 0}
+    
+    # Calculate percentages
+    easy_count = max(1 if question_count >= 5 else 0, round(question_count * 0.2))
+    hard_count = max(1 if question_count >= 5 else 0, round(question_count * 0.2))
+    average_count = question_count - easy_count - hard_count
+    
+    # Ensure at least 1 average if >= 3 questions
+    if question_count >= 3 and average_count < 1:
+        if easy_count > 0:
+            easy_count -= 1
+        elif hard_count > 0:
+            hard_count -= 1
+        average_count = question_count - easy_count - hard_count
+    
+    return {'easy': easy_count, 'average': average_count, 'hard': hard_count}
+
+
+def generate_quiz_prompt(context: str, question_count: int, difficulty: str = 'average', instructions: Optional[str] = None) -> str:
     """Generate the prompt for quiz generation."""
+    
+    # Build difficulty-specific instructions
+    difficulty_instructions = ""
+    
+    if difficulty == 'easy':
+        difficulty_instructions = """
+DIFFICULTY LEVEL: EASY
+
+Question Characteristics:
+- Knowledge Depth: Focus on direct recall or basic recognition
+- Question Type: Definitions, facts, straightforward multiple choice, true/false
+- Distractors: Obviously incorrect options that are clearly wrong
+- Wording: Use clear, simple, direct language
+- Assumptions: None - questions should be self-contained
+- Time to Solve: Very short - questions should be answerable quickly
+
+Guidelines:
+- Ask "what is" or "which of the following" questions
+- Use simple vocabulary and sentence structure
+- Make correct answer clearly distinguishable from distractors
+- Avoid trick wording, abstraction, or hidden assumptions
+- Focus on basic facts and definitions from the context
+"""
+    elif difficulty == 'average':
+        difficulty_instructions = """
+DIFFICULTY LEVEL: AVERAGE
+
+Question Characteristics:
+- Knowledge Depth: Require conceptual understanding or application
+- Question Type: Application scenarios, comparisons, identifying consequences or implications
+- Distractors: Plausible but incorrect options that require some thought to eliminate
+- Wording: Moderately indirect - may require some interpretation
+- Assumptions: One assumption may be required
+- Time to Solve: Moderate - questions require 1-2 reasoning steps
+
+Guidelines:
+- Ask "how would you apply" or "what would happen if" questions
+- Require connecting concepts to scenarios
+- Use moderately complex vocabulary appropriate for the subject
+- Distractors should seem reasonable but be incorrect upon closer examination
+- Include light contextual framing
+"""
+    elif difficulty == 'hard':
+        difficulty_instructions = """
+DIFFICULTY LEVEL: HARD
+
+Question Characteristics:
+- Knowledge Depth: Require multi-step reasoning, synthesis, or evaluation
+- Question Type: Edge cases, conceptual traps, questions where multiple answers seem correct initially
+- Distractors: Very subtle, high-quality distractors that require deep understanding to eliminate
+- Wording: Dense or abstract phrasing that requires careful reading
+- Assumptions: Multiple assumptions may be required
+- Time to Solve: Long - questions require careful, multi-step reasoning
+
+Guidelines:
+- Ask "evaluate", "synthesize", or "analyze" questions
+- Combine multiple concepts in a single question
+- Use sophisticated vocabulary and abstract concepts
+- Distractors should be very subtle and require strong prior knowledge to eliminate
+- Assume strong background knowledge
+- May involve edge cases or nuanced distinctions
+"""
+    elif difficulty == 'mixed':
+        distribution = calculate_mixed_distribution(question_count)
+        difficulty_instructions = f"""
+DIFFICULTY LEVEL: MIXED
+
+Generate a balanced set of questions with the following distribution:
+- {distribution['easy']} Easy question(s): Direct recall, simple language, obviously wrong distractors
+- {distribution['average']} Average question(s): Conceptual understanding, plausible distractors, 1-2 reasoning steps
+- {distribution['hard']} Hard question(s): Multi-step reasoning, subtle distractors, abstract phrasing
+
+Mix the difficulty levels throughout the quiz. Label each question's difficulty in your thinking, but present them in a natural order.
+"""
+    
     base_prompt = f"""You are an expert educator creating multiple-choice questions for assessment.
 
 CONTEXT MATERIAL:
@@ -115,15 +213,17 @@ CONTEXT MATERIAL:
 TASK:
 Generate exactly {question_count} high-quality multiple-choice questions based on the context material above.
 
+{difficulty_instructions}
+
 REQUIREMENTS:
 1. Each question must have exactly ONE correct answer
 2. Each question must have 3-5 answer choices (preferably 4-5)
-3. Questions should test understanding, not just recall
-4. Distractors (wrong answers) should be plausible but clearly incorrect
-5. Questions should be unambiguous and clearly worded
+3. Questions should test understanding appropriate to the difficulty level
+4. Distractors (wrong answers) should match the difficulty level characteristics
+5. Questions should be unambiguous and clearly worded for their difficulty level
 6. Include a brief explanation (1-2 sentences) for why the correct answer is correct
 
-INSTRUCTIONS:
+ADDITIONAL INSTRUCTIONS:
 {instructions if instructions else "Focus on key concepts and important details from the context."}
 
 OUTPUT FORMAT (JSON):
@@ -165,6 +265,7 @@ def generate_quiz():
         chat_id = data.get('chat_id')
         question_count = data.get('question_count', 5)
         context_mode = data.get('context_mode', 'chat')  # 'chat', 'library', 'both'
+        difficulty = data.get('difficulty', 'average')  # 'easy', 'average', 'hard', 'mixed'
         library_doc_ids = data.get('library_doc_ids', [])
         instructions = data.get('instructions', '').strip()
         
@@ -178,6 +279,10 @@ def generate_quiz():
         # Validate context_mode
         if context_mode not in ('chat', 'library', 'both'):
             return jsonify({'error': 'context_mode must be "chat", "library", or "both"'}), 400
+        
+        # Validate difficulty
+        if difficulty not in ('easy', 'average', 'hard', 'mixed'):
+            return jsonify({'error': 'difficulty must be "easy", "average", "hard", or "mixed"'}), 400
         
         # Check chat access
         chat_obj = Chat.query.get(chat_id)
@@ -213,7 +318,7 @@ def generate_quiz():
             return jsonify({'error': 'No context available. Please ensure chat has messages or library documents are selected.'}), 400
         
         # Generate quiz prompt
-        prompt = generate_quiz_prompt(context, question_count, instructions)
+        prompt = generate_quiz_prompt(context, question_count, difficulty, instructions)
         
         # Call AI to generate quiz
         current_app.logger.info(f"Generating quiz for chat {chat_id}, {question_count} questions")
@@ -263,6 +368,7 @@ def generate_quiz():
                 created_by=user.id,
                 question_count=len(questions),
                 context_mode=context_mode,
+                difficulty=difficulty,
                 library_doc_ids=library_doc_ids if library_doc_ids else None,
                 instructions=instructions if instructions else None,
                 questions=questions

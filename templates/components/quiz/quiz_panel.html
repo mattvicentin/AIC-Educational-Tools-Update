@@ -1,0 +1,152 @@
+{# Quiz Panel Component #}
+{# Non-modal overlay panel for quiz generation and taking #}
+
+<div id="quiz-panel-backdrop" class="quiz-panel-backdrop hidden"></div>
+<div id="quiz-panel" class="quiz-panel hidden" role="dialog" aria-labelledby="quiz-panel-title" aria-modal="false">
+    <div class="quiz-panel__header">
+        <h2 id="quiz-panel-title" class="quiz-panel__title">Create your Quiz</h2>
+        <button type="button" class="quiz-panel__close" id="quiz-panel-close" aria-label="Close quiz panel">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+    </div>
+    
+    <div class="quiz-panel__content" id="quiz-panel-content">
+        <!-- Step 1: Configuration Form -->
+        <div id="quiz-step-config" class="quiz-step quiz-step--active">
+            <form id="quiz-config-form" class="quiz-config-form">
+                <div class="quiz-config-field">
+                    <label for="quiz-question-count" class="quiz-config-label">
+                        How many questions?
+                    </label>
+                    <input 
+                        type="number" 
+                        id="quiz-question-count" 
+                        name="question_count" 
+                        class="quiz-config-input"
+                        min="1" 
+                        max="20" 
+                        value="5" 
+                        required
+                    >
+                </div>
+                
+                <div class="quiz-config-field">
+                    <label for="quiz-context-mode" class="quiz-config-label">
+                        Context to be used
+                    </label>
+                    <select id="quiz-context-mode" name="context_mode" class="quiz-config-select" required>
+                        <option value="chat">Chat only</option>
+                        <option value="library">Library only</option>
+                        <option value="both">Chat + Library</option>
+                    </select>
+                </div>
+                
+                <div class="quiz-config-field">
+                    <label class="quiz-config-label">Difficulty</label>
+                    <div class="quiz-difficulty-buttons">
+                        <button type="button" class="quiz-difficulty-btn" data-difficulty="easy">Easy</button>
+                        <button type="button" class="quiz-difficulty-btn active" data-difficulty="average">Average</button>
+                        <button type="button" class="quiz-difficulty-btn" data-difficulty="hard">Hard</button>
+                        <button type="button" class="quiz-difficulty-btn" data-difficulty="mixed">Mixed</button>
+                    </div>
+                    <input type="hidden" id="quiz-difficulty" name="difficulty" value="average">
+                </div>
+                
+                <div id="quiz-library-section" class="quiz-config-field quiz-config-field--hidden">
+                    <label for="quiz-library-docs" class="quiz-config-label">
+                        Select Library Documents
+                    </label>
+                    <div id="quiz-library-docs-container" class="quiz-library-docs">
+                        <div id="quiz-library-empty" class="quiz-library-empty">
+                            <p>No documents in library.</p>
+                            <input type="file" id="quiz-library-file-input" accept=".pdf,.docx,.txt" class="hidden">
+                            <button type="button" class="quiz-library-add-btn" id="quiz-library-add-btn">
+                                Add files to Library
+                            </button>
+                        </div>
+                        <div id="quiz-library-list" class="quiz-library-list hidden"></div>
+                        <div id="quiz-library-upload-status" class="quiz-library-upload-status hidden"></div>
+                    </div>
+                </div>
+                
+                <div class="quiz-config-field">
+                    <label for="quiz-instructions" class="quiz-config-label">
+                        Additional instructions (optional)
+                    </label>
+                    <textarea 
+                        id="quiz-instructions" 
+                        name="instructions" 
+                        class="quiz-config-textarea"
+                        rows="3"
+                        placeholder="e.g., focus on Bloom level 3, include trick options, multiple correct answers allowed?"
+                    ></textarea>
+                </div>
+                
+                <div class="quiz-config-actions">
+                    <button type="submit" class="quiz-btn quiz-btn--primary" id="quiz-generate-btn">
+                        Generate Quiz
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Step 2: Questions -->
+        <div id="quiz-step-questions" class="quiz-step quiz-step--hidden">
+            <div class="quiz-questions-header">
+                <div class="quiz-progress">
+                    <span id="quiz-question-counter">Question 1 of 5</span>
+                </div>
+            </div>
+            
+            <div id="quiz-questions-container" class="quiz-questions-container">
+                <!-- Questions will be dynamically inserted here -->
+            </div>
+            
+            <div class="quiz-questions-actions">
+                <button type="button" class="quiz-btn quiz-btn--secondary" id="quiz-back-btn" disabled>
+                    Back
+                </button>
+                <button type="button" class="quiz-btn quiz-btn--primary" id="quiz-next-btn" disabled>
+                    Next
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 3: Results -->
+        <div id="quiz-step-results" class="quiz-step quiz-step--hidden">
+            <div class="quiz-results-header">
+                <h3 class="quiz-results-title">Quiz Results</h3>
+                <div class="quiz-results-score">
+                    <span id="quiz-score-display">0 / 0</span>
+                </div>
+            </div>
+            
+            <div id="quiz-results-container" class="quiz-results-container">
+                <!-- Results will be dynamically inserted here -->
+            </div>
+            
+            <div class="quiz-results-actions">
+                <button type="button" class="quiz-btn quiz-btn--secondary" id="quiz-retry-btn">
+                    Retry with different settings
+                </button>
+                <button type="button" class="quiz-btn quiz-btn--primary" id="quiz-send-results-btn">
+                    Send results to chat
+                </button>
+            </div>
+        </div>
+        
+        <!-- Loading/Error States -->
+        <div id="quiz-loading" class="quiz-loading hidden">
+            <div class="quiz-loading-spinner"></div>
+            <p id="quiz-loading-text">Generating questions...</p>
+        </div>
+        
+        <div id="quiz-error" class="quiz-error hidden">
+            <div class="quiz-error-icon">⚠️</div>
+            <p id="quiz-error-text"></p>
+            <button type="button" class="quiz-btn quiz-btn--primary" id="quiz-error-retry">
+                Retry
+            </button>
+        </div>
+    </div>
+</div>

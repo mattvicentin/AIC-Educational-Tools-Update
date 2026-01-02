@@ -74,6 +74,15 @@
             libraryFileInput.addEventListener('change', handleQuizLibraryUpload);
         }
 
+        // Difficulty buttons
+        const difficultyButtons = document.querySelectorAll('.quiz-difficulty-btn');
+        difficultyButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const difficulty = btn.getAttribute('data-difficulty');
+                handleDifficultySelection(difficulty);
+            });
+        });
+
         // Question navigation
         const backBtn = document.getElementById('quiz-back-btn');
         const nextBtn = document.getElementById('quiz-next-btn');
@@ -190,6 +199,27 @@
 
         hideLoading();
         hideError();
+    }
+
+    /**
+     * Handle difficulty selection
+     */
+    function handleDifficultySelection(difficulty) {
+        // Update button active states
+        const buttons = document.querySelectorAll('.quiz-difficulty-btn');
+        buttons.forEach(btn => {
+            if (btn.getAttribute('data-difficulty') === difficulty) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Update hidden input
+        const hiddenInput = document.getElementById('quiz-difficulty');
+        if (hiddenInput) {
+            hiddenInput.value = difficulty;
+        }
     }
 
     /**
@@ -440,6 +470,7 @@
         const formData = new FormData(e.target);
         const questionCount = parseInt(formData.get('question_count'));
         const contextMode = formData.get('context_mode');
+        const difficulty = formData.get('difficulty') || 'average';
         const instructions = formData.get('instructions') || '';
         
         // Get selected library documents
@@ -467,6 +498,7 @@
                     chat_id: chatId,
                     question_count: questionCount,
                     context_mode: contextMode,
+                    difficulty: difficulty,
                     library_doc_ids: libraryDocIds,
                     instructions: instructions
                 })
@@ -857,6 +889,9 @@
         if (contextModeSelect) {
             contextModeSelect.value = 'chat';
         }
+
+        // Reset difficulty to default
+        handleDifficultySelection('average');
         
         // Clear library list
         const libraryList = document.getElementById('quiz-library-list');

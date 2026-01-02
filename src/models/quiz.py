@@ -43,6 +43,7 @@ class Quiz(db.Model):
     # Configuration
     question_count = db.Column(db.Integer, nullable=False)
     context_mode = db.Column(db.String(20), nullable=False)  # 'chat', 'library', 'both'
+    difficulty = db.Column(db.String(20), nullable=False, default='average')  # 'easy', 'average', 'hard', 'mixed'
     library_doc_ids = db.Column(JSON, nullable=True)  # List of document IDs
     instructions = db.Column(db.Text, nullable=True)
     
@@ -79,6 +80,7 @@ class Quiz(db.Model):
             'room_id': self.room_id,
             'question_count': self.question_count,
             'context_mode': self.context_mode,
+            'difficulty': self.difficulty,
             'library_doc_ids': self.library_doc_ids or [],
             'instructions': self.instructions,
             'created_at': self.created_at.isoformat(),
@@ -156,4 +158,5 @@ class QuizAnswer(db.Model):
             'started_at': self.started_at.isoformat(),
             'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
         }
+
 
