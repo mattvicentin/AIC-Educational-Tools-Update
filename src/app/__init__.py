@@ -287,6 +287,9 @@ def create_app(config_name=None):
     
     # Quiz Tool integration
     from src.app.quiz import quiz
+    
+    # Flashcards Tool integration
+    from src.app.flashcards import flashcards
 
     app.register_blueprint(auth, url_prefix="/auth")
     app.register_blueprint(chat, url_prefix="/chat")
@@ -306,6 +309,9 @@ def create_app(config_name=None):
     
     # Quiz Tool endpoints
     app.register_blueprint(quiz, url_prefix="/api/quiz")
+    
+    # Flashcards Tool endpoints
+    app.register_blueprint(flashcards, url_prefix="/api/flashcards")
     
     # Dev API (experimental endpoints)
     app.register_blueprint(card_view_api)  # url_prefix set in blueprint

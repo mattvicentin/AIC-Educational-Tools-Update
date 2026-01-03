@@ -3,6 +3,7 @@
 {% block title %}Chat - {{ chat.title }}{% endblock %}
 {% block extra_css %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-panel.css') }}?v=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/flashcards-panel.css') }}?v=1.0">
 <style>
   /* Minimal Focus Mode: hides chrome to maximize chat space */
   body.focus-mode > header, body.focus-mode header { display: none !important; }
@@ -689,6 +690,9 @@
 <!-- Quiz Panel Component -->
 {% include 'components/quiz/quiz_panel.html' %}
 
+<!-- Flashcards Panel Component -->
+{% include 'components/flashcards/flashcards_panel.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -697,7 +701,24 @@
     <script src="{{ url_for('static', filename='js/pin-toggle.js') }}?v=2025-12-04-inplace"></script>
     <script src="{{ url_for('static', filename='js/pin-chat.js') }}?v=2025-12-04"></script>
     <script src="{{ url_for('static', filename='js/library-tool.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tools-menu.js') }}?v=1.1"></script>
     <script src="{{ url_for('static', filename='js/quiz-tool.js') }}?v=1.0"></script>
+    <script>
+    console.error('[DEBUG] BEFORE flashcards-tool.js script tag loads');
+    </script>
+    <script src="{{ url_for('static', filename='js/flashcards-tool.js') }}?v=1.3" onerror="console.error('[DEBUG] flashcards-tool.js FAILED TO LOAD')" onload="console.error('[DEBUG] flashcards-tool.js LOADED SUCCESSFULLY')"></script>
+    <script>
+    // #region agent log
+    console.error('[DEBUG] AFTER flashcards-tool.js script tag, flashcardsTool exists:',!!window.flashcardsTool,'type:',typeof window.flashcardsTool);
+    console.error('[DEBUG] All flashcards scripts found:',Array.from(document.querySelectorAll('script[src*="flashcards"]')).map(s=>s.src));
+    (function(){fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'view.html:706',message:'After flashcards-tool.js script tag',data:{flashcardsToolExists:!!window.flashcardsTool,allScripts:Array.from(document.querySelectorAll('script[src*="flashcards"]')).map(s=>s.src)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});})();
+    // #endregion
+    </script>
+    <script src="{{ url_for('static', filename='js/tools-menu.js') }}?v=1.1"></script>
+    <script>
+    // #region agent log
+    console.error('[DEBUG] AFTER tools-menu.js script tag, flashcardsTool exists:',!!window.flashcardsTool,'toolsMenu exists:',!!window.toolsMenu);
+    (function(){fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'view.html:712',message:'After tools-menu.js script tag',data:{flashcardsToolExists:!!window.flashcardsTool,toolsMenuExists:!!window.toolsMenu},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});})();
+    // #endregion
+    </script>
 {% endblock %}
 <!-- PIN OPACITY FIX DEPLOYED 2025-12-01T03:15Z -->
