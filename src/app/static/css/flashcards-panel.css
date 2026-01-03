@@ -449,7 +449,7 @@
 
 .flashcards-next-btn {
   position: absolute;
-  right: -60px;
+  right: -10px;
   top: 50%;
   transform: translateY(-50%);
   width: 48px;
@@ -463,6 +463,8 @@
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
 }
 
 .flashcards-next-btn:hover {
