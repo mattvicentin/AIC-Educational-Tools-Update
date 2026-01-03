@@ -91,17 +91,30 @@
             libraryFileInput.addEventListener('change', handleFlashcardsLibraryUpload);
         }
 
-        // Generate more button (grid mode only)
+        // Generate more button (grid mode)
         const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
         if (generateMoreBtn) {
             generateMoreBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('Generate More button clicked');
+                console.log('Generate More button clicked (grid)');
                 generateMoreCards();
             });
         } else {
-            console.warn('Generate More button not found');
+            console.warn('Generate More button (grid) not found');
+        }
+
+        // Generate more button (single card mode)
+        const generateMoreSingleBtn = document.getElementById('flashcards-generate-more-single-btn');
+        if (generateMoreSingleBtn) {
+            generateMoreSingleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Generate More button clicked (single)');
+                generateMoreCards();
+            });
+        } else {
+            console.warn('Generate More button (single) not found');
         }
 
         // Close buttons (grid and single card views)
@@ -506,18 +519,26 @@
         if (displayMode === 'grid') {
             renderGridCards(currentFlashcards, gridSize);
             showStep(FLASHCARDS_STEPS.GRID);
-            // Show "Generate More" button in grid mode
+            // Show "Generate More" button in grid mode, hide single card button
             const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
+            const generateMoreSingleBtn = document.getElementById('flashcards-generate-more-single-btn');
             if (generateMoreBtn) {
                 generateMoreBtn.style.display = 'block';
+            }
+            if (generateMoreSingleBtn) {
+                generateMoreSingleBtn.style.display = 'none';
             }
         } else {
             renderSingleCard(currentFlashcards[0], 0, currentFlashcards.length);
             showStep(FLASHCARDS_STEPS.SINGLE);
-            // Hide "Generate More" button in single card mode
+            // Show "Generate More" button in single card mode, hide grid button
             const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
+            const generateMoreSingleBtn = document.getElementById('flashcards-generate-more-single-btn');
             if (generateMoreBtn) {
                 generateMoreBtn.style.display = 'none';
+            }
+            if (generateMoreSingleBtn) {
+                generateMoreSingleBtn.style.display = 'block';
             }
         }
 
@@ -644,12 +665,12 @@
     }
 
     /**
-     * Generate more cards using saved configuration (grid mode only)
+     * Generate more cards using saved configuration (grid and single card modes)
      */
     async function generateMoreCards() {
         console.log('Generate More clicked, savedConfig:', savedConfig);
-        if (!savedConfig || savedConfig.displayMode !== 'grid') {
-            console.error('Configuration not available or not grid mode', savedConfig);
+        if (!savedConfig) {
+            console.error('Configuration not available', savedConfig);
             showError('Configuration not available');
             return;
         }
@@ -726,8 +747,12 @@
                 }
             });
 
-            // Re-render grid with new cards only
-            renderGridCards(currentFlashcards, savedConfig.gridSize);
+            // Re-render based on display mode
+            if (savedConfig.displayMode === 'grid') {
+                renderGridCards(currentFlashcards, savedConfig.gridSize);
+            } else {
+                renderSingleCard(currentFlashcards[0], 0, currentFlashcards.length);
+            }
             hideLoading();
 
         } catch (error) {
