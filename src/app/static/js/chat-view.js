@@ -390,21 +390,42 @@
             ro.observe(inputBar);
         }
         
-        // Chat Sidebar Toggle functionality (mobile only)
+        // Chat Sidebar Toggle functionality (desktop and mobile)
         const chatSidebarToggle = document.getElementById('chat-sidebar-toggle');
         const chatSidebar = document.querySelector('.chat-sidebar');
+        const chatMain = document.querySelector('.chat-main');
         
         if (chatSidebarToggle && chatSidebar) {
-            chatSidebarToggle.addEventListener('click', function() {
-                chatSidebar.classList.toggle('open');
+            chatSidebarToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isMobile = window.innerWidth <= 768;
+                
+                if (isMobile) {
+                    // Mobile: toggle overlay
+                    chatSidebar.classList.toggle('open');
+                } else {
+                    // Desktop: toggle collapsed state
+                    chatSidebar.classList.toggle('collapsed');
+                    if (chatMain) {
+                        chatMain.classList.toggle('sidebar-collapsed');
+                    }
+                }
                 
                 // Update the icon
                 const icon = chatSidebarToggle.querySelector('i');
                 if (icon) {
-                    if (chatSidebar.classList.contains('open')) {
-                        icon.setAttribute('data-lucide', 'x');
+                    if (isMobile) {
+                        if (chatSidebar.classList.contains('open')) {
+                            icon.setAttribute('data-lucide', 'x');
+                        } else {
+                            icon.setAttribute('data-lucide', 'panel-left');
+                        }
                     } else {
-                        icon.setAttribute('data-lucide', 'panel-left');
+                        if (chatSidebar.classList.contains('collapsed')) {
+                            icon.setAttribute('data-lucide', 'panel-right');
+                        } else {
+                            icon.setAttribute('data-lucide', 'panel-left');
+                        }
                     }
                     
                     // Reinitialize Lucide icons

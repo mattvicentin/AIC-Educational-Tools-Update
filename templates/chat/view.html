@@ -16,6 +16,9 @@
   body.focus-mode main { padding: 0 !important; margin: 0 !important; }
   body.focus-mode, body.focus-mode html { height: 100%; }
   body.focus-mode .chat-layout, body.focus-mode .chat-container, body.focus-mode .chat-main { height: 100vh !important; }
+  /* Expand chat main and container to full width when sidebar is hidden in focus mode */
+  body.focus-mode .chat-container { width: 100% !important; }
+  body.focus-mode .chat-main { margin-left: 0 !important; width: 100% !important; }
   /* Ensure input is visible in focus mode on desktop */
   body.focus-mode .chat-input-container { position: fixed !important; left: 0; right: 0; bottom: 0; z-index: 10000; display: block !important; }
   /* Padding for #chat-messages in focus mode is handled dynamically via JS */
@@ -67,6 +70,12 @@
     color: inherit;
   }
 </style>
+<script>
+  // Add body class for chat page styling
+  document.addEventListener('DOMContentLoaded', function() {
+    document.body.classList.add('chat-page');
+  });
+</script>
 {% endblock %}
 
 {% block content %}
@@ -106,41 +115,12 @@
                     {{ room.name }}
                 </h2>
                 <a href="{{ url_for('room.room_crud.view_room', room_id=room.id) }}" 
-                   class="text-sm text-muted-foreground hover:text-foreground">
+                   id="back-to-room-btn"
+                   class="text-muted-foreground hover:text-foreground transition-colors text-sm px-2 py-1 rounded-md hover:bg-muted inline-block">
                     Back to Room
                 </a>
             </div>
             
-            <!-- Chat Context (Always Visible) -->
-            <div class="mt-3 pt-3 border-t border-border">
-                <!-- System Instructions Dropdown -->
-                <details class="mt-1 system-instructions">
-                    <summary class="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground flex items-center justify-between gap-2">
-                        <span class="flex items-center gap-2">
-                            🤖 AI Assistant Role
-                        </span>
-                        <i data-lucide="chevron-down" class="w-4 h-4 chevron text-muted-foreground"></i>
-                    </summary>
-                    <div class="mt-2 p-3 bg-muted rounded-md text-xs system-instructions">
-                        <!-- Mode Label -->
-                        <div class="text-xs font-semibold text-primary mb-2 pb-2 border-b border-border/50">
-                            Mode: {{ modes[chat.mode].label if modes.get(chat.mode) else chat.mode|title }}
-                        </div>
-                        
-                        <!-- System Prompt -->
-                        {% if chat.mode in modes %}
-                            {{ modes[chat.mode].prompt }}
-                        {% else %}
-                            <em>Mode: {{ chat.mode }}</em><br><br>
-                            You are a collaborative AI assistant helping with {{ chat.mode.lower() }}. 
-                            I'll guide you through the learning process by asking thoughtful questions 
-                            and helping you develop your skills step by step.
-                        {% endif %}
-                    </div>
-                </details>
-                
-
-            </div>
         </div>
 
         <!-- Tools Section (Collapsible) -->
@@ -267,7 +247,6 @@
             <div class="sidebar-panel">
                 <!-- Room Members -->
                 <div class="overflow-y-auto">
-                    <h4 class="text-sm font-medium mb-3">Room Members</h4>
                     {% if room_members %}
                     <div class="member-list">
                         {% for member in room_members %}
@@ -303,122 +282,29 @@
                 </div>
             </div>
         </details>
-
-        <!-- Other Chats Section (Collapsible) -->
-        <details class="sidebar-section" data-section="other-chats">
+        
+        <!-- AI Assistant Role Section (Moved to bottom) -->
+        <details class="sidebar-section" data-section="ai-role">
             <summary class="sidebar-summary">
-                <i data-lucide="messages-square" class="w-5 h-5"></i>
-                <span>Other Chats</span>
-                <span class="badge">{{ (other_chats|length) if other_chats else 0 }}</span>
+                <i data-lucide="bot" class="w-5 h-5"></i>
+                <span>AI Assistant Role</span>
                 <i data-lucide="chevron-down" class="w-4 h-4 chevron"></i>
             </summary>
             <div class="sidebar-panel">
-                <!-- Pin Chat CTA (when ≥3 shared pins) -->
-                {% if shared_pins|length >= 3 %}
-                <div class="pin-chat-cta-prominent mb-4 p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-md">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2 text-white">
-                            <i data-lucide="pin" class="w-5 h-5"></i>
-                            <span class="font-medium">{{ shared_pins|length }} Shared Pins</span>
-                        </div>
-                        <button type="button" 
-                                class="pin-chat-start-btn px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1.5"
-                                data-room-id="{{ room.id }}"
-                                data-pin-count="{{ shared_pins|length }}">
-                            <i data-lucide="sparkles" class="w-4 h-4"></i>
-                            New from Pins
-                        </button>
+                <div class="p-3 bg-muted rounded-md text-xs system-instructions">
+                    <!-- Mode Label -->
+                    <div class="text-xs font-semibold text-primary mb-2 pb-2 border-b border-border/50">
+                        Mode: {{ modes[chat.mode].label if modes.get(chat.mode) else chat.mode|title }}
                     </div>
-                </div>
-                {% endif %}
-                
-                <!-- Chat List -->
-                <div class="overflow-y-auto">
-                    <h4 class="text-sm font-medium mb-3">Other Chats</h4>
-                    {% if other_chats %}
                     
-                    {# Count pin chats for section header #}
-                    {% set pin_chat_count = namespace(value=0) %}
-                    {% for c in other_chats %}
-                        {% if c.id in pin_chat_ids %}
-                            {% set pin_chat_count.value = pin_chat_count.value + 1 %}
-                        {% endif %}
-                    {% endfor %}
-                    
-                    {# Check if there are regular chats #}
-                    {% set has_regular = namespace(value=false) %}
-                    {% for other_chat in other_chats %}
-                        {% if other_chat.id not in pin_chat_ids %}
-                            {% set has_regular.value = true %}
-                        {% endif %}
-                    {% endfor %}
-                    
-                    {# Regular Chats #}
-                    {% if has_regular.value %}
-                    <div class="chat-list space-y-2 mb-4">
-                        {% for other_chat in other_chats %}
-                        {% if other_chat.id not in pin_chat_ids %}
-                        <a href="{{ url_for('chat.view_chat', chat_id=other_chat.id) }}" 
-                           class="block p-3 rounded-lg border border-border hover:bg-muted transition-colors">
-                            <div class="flex items-center justify-between">
-                                <div class="flex-1 min-w-0">
-                                    <h5 class="font-medium text-sm truncate">{{ other_chat.title }}</h5>
-                                    <p class="text-xs text-muted-foreground">{{ modes[other_chat.mode].label if modes.get(other_chat.mode) else other_chat.mode|title }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ other_chat.created_at.strftime('%b %d, %Y') }}</p>
-                                </div>
-                                <div class="flex items-center gap-1">
-                                    <span class="text-xs text-muted-foreground">{{ other_chat.messages|length }} msgs</span>
-                                    <i data-lucide="chevron-right" class="w-4 h-4 text-muted-foreground"></i>
-                                </div>
-                            </div>
-                        </a>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    
-                    {# Pin-based Chats (grouped at bottom) #}
-                    {% if pin_chat_count.value > 0 %}
-                    <div class="pin-chats-group">
-                        <div class="flex items-center gap-2 mb-2 pt-2 border-t border-border">
-                            <i data-lucide="pin" class="w-4 h-4 text-indigo-500"></i>
-                            <span class="text-xs font-medium text-indigo-600 dark:text-indigo-400">Pin-based Chats</span>
-                            <span class="text-xs text-muted-foreground">({{ pin_chat_count.value }})</span>
-                        </div>
-                        <div class="chat-list space-y-2">
-                            {% for other_chat in other_chats %}
-                            {% if other_chat.id in pin_chat_ids %}
-                            {% set pin_info = pin_chat_info.get(other_chat.id, {}) %}
-                            <a href="{{ url_for('chat.view_chat', chat_id=other_chat.id) }}" 
-                               class="block p-3 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex-1 min-w-0">
-                                        <h5 class="font-medium text-sm truncate">{{ other_chat.title }}</h5>
-                                        <div class="flex items-center gap-2 mt-1">
-                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded text-xs">
-                                                <i data-lucide="pin" class="w-3 h-3"></i>
-                                                {{ pin_info.get('pin_count', '?') }} pins
-                                            </span>
-                                            <span class="text-xs text-muted-foreground">{{ other_chat.created_at.strftime('%b %d') }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-1">
-                                        <span class="text-xs text-muted-foreground">{{ other_chat.messages|length }} msgs</span>
-                                        <i data-lucide="chevron-right" class="w-4 h-4 text-muted-foreground"></i>
-                                    </div>
-                                </div>
-                            </a>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    {% if not has_regular.value and pin_chat_count.value == 0 %}
-                    <p class="text-sm text-muted-foreground">No other chats in this room.</p>
-                    {% endif %}
+                    <!-- System Prompt -->
+                    {% if chat.mode in modes %}
+                        {{ modes[chat.mode].prompt }}
                     {% else %}
-                    <p class="text-sm text-muted-foreground">No other chats in this room.</p>
+                        <em>Mode: {{ chat.mode }}</em><br><br>
+                        You are a collaborative AI assistant helping with {{ chat.mode.lower() }}. 
+                        I'll guide you through the learning process by asking thoughtful questions 
+                        and helping you develop your skills step by step.
                     {% endif %}
                 </div>
             </div>
@@ -431,8 +317,8 @@
         <div class="p-4 border-b border-border chat-header">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                    <!-- Mobile Sidebar Toggle (hidden on desktop) -->
-                    <button id="chat-sidebar-toggle" class="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Toggle sidebar">
+                    <!-- Sidebar Toggle Button -->
+                    <button id="chat-sidebar-toggle" class="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Toggle sidebar">
                         <i data-lucide="panel-left" class="w-5 h-5"></i>
                     </button>
                     <div>
