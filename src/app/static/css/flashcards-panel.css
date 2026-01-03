@@ -381,6 +381,12 @@
   text-align: center;
   border: 2px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .flashcard-front {
@@ -388,6 +394,19 @@
   color: #111827;
   font-weight: 600;
   font-size: 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.flashcard-front > *,
+.flashcard-back > * {
+  width: 100%;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .flashcard-back {
@@ -397,6 +416,8 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 /* Single Card Display */

@@ -91,6 +91,19 @@
             libraryFileInput.addEventListener('change', handleFlashcardsLibraryUpload);
         }
 
+        // Generate more button (grid mode only)
+        const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
+        if (generateMoreBtn) {
+            generateMoreBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Generate More button clicked');
+                generateMoreCards();
+            });
+        } else {
+            console.warn('Generate More button not found');
+        }
+
         // Close buttons (grid and single card views)
         const closeBtnGrid = document.getElementById('flashcards-close-btn');
         const closeSingleBtn = document.getElementById('flashcards-close-single-btn');
@@ -455,6 +468,7 @@
                 cardCount: cardCount,
                 instructions: instructions
             };
+            console.log('Configuration saved for Generate More:', savedConfig);
 
             handleFlashcardsResponse(data, displayMode, gridSize);
             
@@ -578,11 +592,25 @@
 
         const front = document.createElement('div');
         front.className = 'flashcard-front';
-        front.textContent = card.front || '';
+        const frontText = document.createElement('div');
+        frontText.style.width = '100%';
+        frontText.style.maxWidth = '100%';
+        frontText.style.wordWrap = 'break-word';
+        frontText.style.overflowWrap = 'break-word';
+        frontText.style.wordBreak = 'break-word';
+        frontText.textContent = card.front || '';
+        front.appendChild(frontText);
 
         const back = document.createElement('div');
         back.className = 'flashcard-back';
-        back.textContent = card.back || '';
+        const backText = document.createElement('div');
+        backText.style.width = '100%';
+        backText.style.maxWidth = '100%';
+        backText.style.wordWrap = 'break-word';
+        backText.style.overflowWrap = 'break-word';
+        backText.style.wordBreak = 'break-word';
+        backText.textContent = card.back || '';
+        back.appendChild(backText);
 
         inner.appendChild(front);
         inner.appendChild(back);
@@ -619,7 +647,9 @@
      * Generate more cards using saved configuration (grid mode only)
      */
     async function generateMoreCards() {
+        console.log('Generate More clicked, savedConfig:', savedConfig);
         if (!savedConfig || savedConfig.displayMode !== 'grid') {
+            console.error('Configuration not available or not grid mode', savedConfig);
             showError('Configuration not available');
             return;
         }
@@ -665,13 +695,15 @@
                 throw new Error(data.message || 'Failed to generate more flashcards');
             }
 
-            // Filter duplicates and add new cards
+            // Filter duplicates within the new batch only (not against previously seen cards)
+            // Since we're replacing cards, we don't need to check against old seenHashes
+            const tempSeenHashes = new Set();
             const newCards = (data.cards || []).filter(card => {
-                if (card.hash && seenHashes.has(card.hash)) {
+                if (card.hash && tempSeenHashes.has(card.hash)) {
                     return false;
                 }
                 if (card.hash) {
-                    seenHashes.add(card.hash);
+                    tempSeenHashes.add(card.hash);
                 }
                 return true;
             });
@@ -682,10 +714,19 @@
                 return;
             }
 
-            // Add to current flashcards
-            currentFlashcards.push(...newCards);
+            // Replace current flashcards with new ones (don't append)
+            currentFlashcards = newCards;
+            currentCardIndex = 0;
+            
+            // Clear seenHashes and repopulate with new cards only
+            seenHashes.clear();
+            currentFlashcards.forEach(card => {
+                if (card.hash) {
+                    seenHashes.add(card.hash);
+                }
+            });
 
-            // Re-render grid with all cards
+            // Re-render grid with new cards only
             renderGridCards(currentFlashcards, savedConfig.gridSize);
             hideLoading();
 
