@@ -770,7 +770,6 @@
     async function sendResultsToChat() {
         if (!currentQuiz || !chatId) {
             console.error('Cannot send results: missing quiz or chatId');
-            alert('Error: Quiz data not available. Please try again.');
             return;
         }
 
@@ -825,19 +824,21 @@
             }
 
             // Success - close panel and refresh messages
-            alert('Quiz results sent to chat successfully!');
             closeQuizPanel();
             
             // Refresh chat messages if function exists
             if (typeof pollNewMessages === 'function') {
                 pollNewMessages();
-            } else if (typeof window.chatView && typeof window.chatView.loadMessages === 'function') {
-                window.chatView.loadMessages();
+            } else {
+                // Fallback: reload page to show new message
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
             }
             
         } catch (error) {
             console.error('Failed to send results to chat:', error);
-            alert(`Failed to send results to chat: ${error.message}\n\nYou can copy the results manually from the quiz panel.`);
+            // Don't show alert, just log the error
         }
     }
 
