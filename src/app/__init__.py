@@ -16,9 +16,18 @@ import re
 db = SQLAlchemy()
 # Create CSRF protection instance
 csrf = CSRFProtect()
+# Custom key function that exempts static files
+def rate_limit_key_func():
+    """Rate limit key function that exempts static files."""
+    from flask import request
+    # Exempt static files from rate limiting
+    if request.endpoint == 'static' or request.path.startswith('/static/') or request.path.startswith('/assets/'):
+        return None  # None key means no rate limiting
+    return get_remote_address()
+
 # Create rate limiter instance
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=rate_limit_key_func,
     default_limits=["200 per day", "50 per hour"],
     storage_uri=None  # Will be configured per environment
 )
@@ -198,6 +207,7 @@ def create_app(config_name=None):
     else:
         # Development: Use in-memory storage (faster for development)
         limiter.init_app(app)
+    
     
     # Add security headers
     @app.after_request
@@ -451,6 +461,7 @@ def create_app(config_name=None):
     # Targeted fallback route to serve CSS from the configured Static/css directory
     # This guards against case/path mismatches causing 404s on /static/css/* in production
     @app.route("/static/css/<path:filename>")
+    @limiter.exempt
     def __static_css_fallback(filename: str):
         try:
             from flask import send_from_directory
@@ -462,6 +473,7 @@ def create_app(config_name=None):
 
     # Non-conflicting assets route we fully control (bypasses Flask's built-in static rule)
     @app.route("/assets/css/<path:filename>")
+    @limiter.exempt
     def assets_css(filename: str):
         try:
             from flask import send_from_directory

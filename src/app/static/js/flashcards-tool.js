@@ -25,9 +25,9 @@
     let currentDisplayMode = null;
     let currentGridSize = null;
     let currentCardIndex = 0;
-    let isInfinite = false;
     let seenHashes = new Set();
     let chatId = null;
+    let savedConfig = null; // Store configuration for "Generate More"
 
     /**
      * Initialize flashcards tool
@@ -79,17 +79,6 @@
             displayModeSelect.addEventListener('change', handleDisplayModeChange);
         }
 
-        // Infinite checkboxes
-        const infiniteGridCheckbox = document.getElementById('flashcards-infinite-grid');
-        if (infiniteGridCheckbox) {
-            infiniteGridCheckbox.addEventListener('change', handleInfiniteGridChange);
-        }
-
-        const infiniteSingleCheckbox = document.getElementById('flashcards-infinite-single');
-        if (infiniteSingleCheckbox) {
-            infiniteSingleCheckbox.addEventListener('change', handleInfiniteSingleChange);
-        }
-
         // Library add button
         const libraryAddBtn = document.getElementById('flashcards-library-add-btn');
         if (libraryAddBtn) {
@@ -100,12 +89,6 @@
         const libraryFileInput = document.getElementById('flashcards-library-file-input');
         if (libraryFileInput) {
             libraryFileInput.addEventListener('change', handleFlashcardsLibraryUpload);
-        }
-
-        // Generate more button
-        const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
-        if (generateMoreBtn) {
-            generateMoreBtn.addEventListener('click', generateMoreCards);
         }
 
         // Close buttons (grid and single card views)
@@ -164,29 +147,6 @@
         }
     }
 
-    /**
-     * Handle infinite grid change
-     */
-    function handleInfiniteGridChange() {
-        // Infinite grid just enables "Generate More" button
-        // No need to hide/show fields
-    }
-
-    /**
-     * Handle infinite single change
-     */
-    function handleInfiniteSingleChange() {
-        const checkbox = document.getElementById('flashcards-infinite-single');
-        const cardCountInput = document.getElementById('flashcards-card-count');
-        
-        if (checkbox.checked) {
-            cardCountInput.disabled = true;
-            cardCountInput.value = '';
-        } else {
-            cardCountInput.disabled = false;
-            cardCountInput.value = '10';
-        }
-    }
 
     /**
      * Handle context mode change
@@ -419,21 +379,16 @@
         
         let cardCount = null;
         let gridSize = null;
-        let infinite = false;
 
         if (displayMode === 'grid') {
             gridSize = formData.get('grid_size');
-            infinite = formData.get('infinite_grid') === 'on';
             // Card count is calculated from grid size
             cardCount = calculateCardCountFromGrid(gridSize);
         } else {
-            infinite = formData.get('infinite_single') === 'on';
-            if (!infinite) {
-                cardCount = parseInt(formData.get('card_count'));
-                if (!cardCount || cardCount < 1) {
-                    showError('Please enter a valid card count');
-                    return;
-                }
+            cardCount = parseInt(formData.get('card_count'));
+            if (!cardCount || cardCount < 1) {
+                showError('Please enter a valid card count');
+                return;
             }
         }
         
@@ -465,7 +420,6 @@
                     display_mode: displayMode,
                     grid_size: gridSize,
                     card_count: cardCount,
-                    infinite_grid: displayMode === 'grid' ? infinite : false,
                     instructions: instructions
                 })
             });
@@ -492,14 +446,15 @@
                 throw new Error(data.message || 'Flashcard generation failed');
             }
 
-            // Store session info if infinite
-            if (data.session_id) {
-                currentSessionId = data.session_id;
-                currentCursor = data.cursor;
-                isInfinite = true;
-            } else {
-                isInfinite = false;
-            }
+            // Store configuration for "Generate More" functionality
+            savedConfig = {
+                contextMode: contextMode,
+                libraryDocIds: libraryDocIds,
+                displayMode: displayMode,
+                gridSize: gridSize,
+                cardCount: cardCount,
+                instructions: instructions
+            };
 
             handleFlashcardsResponse(data, displayMode, gridSize);
             
@@ -537,15 +492,19 @@
         if (displayMode === 'grid') {
             renderGridCards(currentFlashcards, gridSize);
             showStep(FLASHCARDS_STEPS.GRID);
-            
-            // Show generate more button if infinite
+            // Show "Generate More" button in grid mode
             const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
-            if (generateMoreBtn && isInfinite) {
+            if (generateMoreBtn) {
                 generateMoreBtn.style.display = 'block';
             }
         } else {
             renderSingleCard(currentFlashcards[0], 0, currentFlashcards.length);
             showStep(FLASHCARDS_STEPS.SINGLE);
+            // Hide "Generate More" button in single card mode
+            const generateMoreBtn = document.getElementById('flashcards-generate-more-btn');
+            if (generateMoreBtn) {
+                generateMoreBtn.style.display = 'none';
+            }
         }
 
         hideLoading();
@@ -587,15 +546,13 @@
         wrapper.appendChild(cardEl);
 
         // Update progress
-        if (progress && !isInfinite) {
+        if (progress) {
             progress.textContent = `Card ${index + 1} of ${total}`;
-        } else if (progress) {
-            progress.textContent = `Card ${index + 1}`;
         }
 
         // Update next button
         if (nextBtn) {
-            if (index >= total - 1 && !isInfinite) {
+            if (index >= total - 1) {
                 nextBtn.disabled = true;
             } else {
                 nextBtn.disabled = false;
@@ -651,10 +608,6 @@
      */
     function goToNextCard() {
         if (currentCardIndex >= currentFlashcards.length - 1) {
-            if (isInfinite && currentSessionId) {
-                // Generate more cards
-                generateMoreCards();
-            }
             return;
         }
 
@@ -663,30 +616,35 @@
     }
 
     /**
-     * Generate more cards
+     * Generate more cards using saved configuration (grid mode only)
      */
     async function generateMoreCards() {
-        if (!currentSessionId) {
-            showError('Session not available');
+        if (!savedConfig || savedConfig.displayMode !== 'grid') {
+            showError('Configuration not available');
+            return;
+        }
+
+        if (!chatId) {
+            showError('Chat ID not found');
             return;
         }
 
         showLoading('Generating more flashcards...');
 
         try {
-            const cardCount = currentDisplayMode === 'grid' 
-                ? calculateCardCountFromGrid(currentGridSize)
-                : 10; // Default 10 for single mode
-
             const response = await fetch('/api/flashcards/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    session_id: currentSessionId,
-                    cursor: currentCursor,
-                    card_count: cardCount
+                    chat_id: chatId,
+                    context_mode: savedConfig.contextMode,
+                    library_doc_ids: savedConfig.libraryDocIds,
+                    display_mode: savedConfig.displayMode,
+                    grid_size: savedConfig.gridSize,
+                    card_count: savedConfig.cardCount,
+                    instructions: savedConfig.instructions
                 })
             });
 
@@ -696,6 +654,7 @@
                 throw new Error(data.message || data.error || 'Failed to generate more flashcards');
             }
 
+            // Handle response status
             if (data.status === 'insufficient_context') {
                 showWarning(data.message || 'No more cards can be generated');
                 hideLoading();
@@ -705,9 +664,6 @@
             if (data.status !== 'ok') {
                 throw new Error(data.message || 'Failed to generate more flashcards');
             }
-
-            // Update cursor
-            currentCursor = data.cursor;
 
             // Filter duplicates and add new cards
             const newCards = (data.cards || []).filter(card => {
@@ -729,17 +685,8 @@
             // Add to current flashcards
             currentFlashcards.push(...newCards);
 
-            // Re-render
-            if (currentDisplayMode === 'grid') {
-                renderGridCards(currentFlashcards, currentGridSize);
-            } else {
-                // Stay on current card, but update total
-                const progress = document.getElementById('flashcards-progress');
-                if (progress && !isInfinite) {
-                    progress.textContent = `Card ${currentCardIndex + 1} of ${currentFlashcards.length}`;
-                }
-            }
-
+            // Re-render grid with all cards
+            renderGridCards(currentFlashcards, savedConfig.gridSize);
             hideLoading();
 
         } catch (error) {
@@ -836,8 +783,8 @@
         currentDisplayMode = null;
         currentGridSize = null;
         currentCardIndex = 0;
-        isInfinite = false;
         seenHashes.clear();
+        savedConfig = null;
         
         const configForm = document.getElementById('flashcards-config-form');
         if (configForm) {
