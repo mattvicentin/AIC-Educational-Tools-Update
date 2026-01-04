@@ -23,6 +23,7 @@ from .pin import PinnedItem, PinChatMetadata
 from .card_comment import CardComment, generate_card_key, generate_body_hash
 from .quiz import Quiz, QuizAnswer
 from .flashcards import FlashcardSet, FlashcardSession
+from .mindmap import MindMap
 from .document import Document, DocumentChunk
 
 __all__ = [
@@ -54,6 +55,7 @@ __all__ = [
     "QuizAnswer",
     "FlashcardSet",
     "FlashcardSession",
+    "MindMap",
     "Document",
     "DocumentChunk",
 ]

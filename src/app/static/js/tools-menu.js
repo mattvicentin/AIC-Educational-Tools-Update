@@ -275,7 +275,17 @@
             return;
         }
         
-        // TODO: Implement other tools (mindmap, narrative)
+        // Handle mind map tool
+        if (tool === 'mindmap') {
+            if (window.mindMapTool && typeof window.mindMapTool.open === 'function') {
+                window.mindMapTool.open();
+            } else {
+                console.warn('Mind Map tool not available');
+            }
+            return;
+        }
+        
+        // TODO: Implement other tools (narrative)
         // For now, just log the selection
         console.log(`Tool "${tool}" not yet implemented`);
     }

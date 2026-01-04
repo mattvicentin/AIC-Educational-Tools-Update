@@ -300,6 +300,9 @@ def create_app(config_name=None):
     
     # Flashcards Tool integration
     from src.app.flashcards import flashcards
+    
+    # Mind Map Tool integration
+    from src.app.mindmap import mindmap
 
     app.register_blueprint(auth, url_prefix="/auth")
     app.register_blueprint(chat, url_prefix="/chat")
@@ -322,6 +325,9 @@ def create_app(config_name=None):
     
     # Flashcards Tool endpoints
     app.register_blueprint(flashcards, url_prefix="/api/flashcards")
+    
+    # Mind Map Tool endpoints
+    app.register_blueprint(mindmap, url_prefix="/api/mindmap")
     
     # Dev API (experimental endpoints)
     app.register_blueprint(card_view_api)  # url_prefix set in blueprint

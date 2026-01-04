@@ -1,0 +1,109 @@
+{# Mind Map Panel Component #}
+{# Modal overlay panel for mind map generation and display #}
+
+<div id="mindmap-panel-backdrop" class="mindmap-panel-backdrop hidden"></div>
+<div id="mindmap-panel" class="mindmap-panel hidden" role="dialog" aria-labelledby="mindmap-panel-title" aria-modal="false">
+    <div class="mindmap-panel__header">
+        <h2 id="mindmap-panel-title" class="mindmap-panel__title">Create your Mind Map</h2>
+        <button type="button" class="mindmap-panel__close" id="mindmap-panel-close" aria-label="Close mind map panel">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+    </div>
+    
+    <div class="mindmap-panel__content" id="mindmap-panel-content">
+        <!-- Step 1: Configuration Form -->
+        <div id="mindmap-step-config" class="mindmap-step mindmap-step--active">
+            <form id="mindmap-config-form" class="mindmap-config-form">
+                <div class="mindmap-config-field">
+                    <label for="mindmap-context-mode" class="mindmap-config-label">
+                        Context to be used
+                    </label>
+                    <select id="mindmap-context-mode" name="context_mode" class="mindmap-config-select" required>
+                        <option value="chat">Chat only</option>
+                        <option value="library">Library only</option>
+                        <option value="both">Chat + Library</option>
+                    </select>
+                </div>
+                
+                <div class="mindmap-config-field">
+                    <label class="mindmap-config-label">Size for the Mind Map</label>
+                    <div class="mindmap-size-buttons">
+                        <button type="button" class="mindmap-size-btn" data-size="small">Small</button>
+                        <button type="button" class="mindmap-size-btn active" data-size="medium">Medium</button>
+                        <button type="button" class="mindmap-size-btn" data-size="large">Large</button>
+                    </div>
+                    <input type="hidden" id="mindmap-size" name="size" value="medium">
+                </div>
+                
+                <div id="mindmap-library-section" class="mindmap-config-field mindmap-config-field--hidden">
+                    <label for="mindmap-library-docs" class="mindmap-config-label">
+                        Select Library Documents
+                    </label>
+                    <div id="mindmap-library-docs-container" class="mindmap-library-docs">
+                        <div id="mindmap-library-empty" class="mindmap-library-empty">
+                            <p>No documents in library.</p>
+                            <input type="file" id="mindmap-library-file-input" accept=".pdf,.docx,.txt" class="hidden">
+                            <button type="button" class="mindmap-library-add-btn" id="mindmap-library-add-btn">
+                                Add files to Library
+                            </button>
+                        </div>
+                        <div id="mindmap-library-list" class="mindmap-library-list hidden"></div>
+                        <div id="mindmap-library-upload-status" class="mindmap-library-upload-status hidden"></div>
+                    </div>
+                </div>
+                
+                <div class="mindmap-config-field">
+                    <label for="mindmap-instructions" class="mindmap-config-label">
+                        Additional instructions (optional)
+                    </label>
+                    <textarea 
+                        id="mindmap-instructions" 
+                        name="instructions" 
+                        class="mindmap-config-textarea"
+                        rows="3"
+                        placeholder="e.g., focus on key concepts, emphasize relationships, include examples"
+                    ></textarea>
+                </div>
+                
+                <div class="mindmap-config-actions">
+                    <button type="submit" class="mindmap-btn mindmap-btn--primary" id="mindmap-generate-btn">
+                        Generate Mind Map
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Step 2: Mind Map Display -->
+        <div id="mindmap-step-display" class="mindmap-step mindmap-step--hidden">
+            <div id="mindmap-display-container" class="mindmap-display-container">
+                <!-- Mind map will be dynamically inserted here -->
+            </div>
+            
+            <div class="mindmap-actions">
+                <button type="button" class="mindmap-btn mindmap-btn--secondary" id="mindmap-retry-btn">
+                    Create New Mind Map
+                </button>
+                <button type="button" class="mindmap-btn mindmap-btn--primary" id="mindmap-send-to-chat-btn">
+                    Send to chat
+                </button>
+            </div>
+        </div>
+        
+        <!-- Loading/Error States -->
+        <div id="mindmap-loading" class="mindmap-loading hidden">
+            <div class="mindmap-loading-spinner"></div>
+            <p id="mindmap-loading-text">Generating mind map...</p>
+        </div>
+        
+        <div id="mindmap-error" class="mindmap-error hidden">
+            <div class="mindmap-error-icon">⚠️</div>
+            <p id="mindmap-error-text"></p>
+            <button type="button" class="mindmap-btn mindmap-btn--primary" id="mindmap-error-retry">
+                Retry
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Tooltip for node explanations -->
+<div id="mindmap-tooltip" class="mindmap-tooltip hidden"></div>

@@ -4,6 +4,7 @@
 {% block extra_css %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-panel.css') }}?v=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/flashcards-panel.css') }}?v=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mindmap-panel.css') }}?v=1.0">
 <style>
   /* Minimal Focus Mode: hides chrome to maximize chat space */
   body.focus-mode > header, body.focus-mode header { display: none !important; }
@@ -579,6 +580,9 @@
 <!-- Flashcards Panel Component -->
 {% include 'components/flashcards/flashcards_panel.html' %}
 
+<!-- Mind Map Panel Component -->
+{% include 'components/mindmap/mindmap_panel.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -599,6 +603,7 @@
     (function(){fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'view.html:706',message:'After flashcards-tool.js script tag',data:{flashcardsToolExists:!!window.flashcardsTool,allScripts:Array.from(document.querySelectorAll('script[src*="flashcards"]')).map(s=>s.src)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});})();
     // #endregion
     </script>
+    <script src="{{ url_for('static', filename='js/mindmap-tool.js') }}?v=1.0"></script>
     <script src="{{ url_for('static', filename='js/tools-menu.js') }}?v=1.1"></script>
     <script>
     // #region agent log
