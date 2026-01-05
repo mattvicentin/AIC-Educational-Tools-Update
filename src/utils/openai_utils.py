@@ -557,10 +557,28 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
     except ImportError:
         raise Exception("Anthropic SDK not installed. Install with: pip install anthropic")
 
-    def _get_anthropic_model() -> str:
-        # Default to claude-3-5-haiku-20241022 (latest available model, fast and cost-effective)
-        # User can override with ANTHROPIC_MODEL env var
-        return os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+    def _get_candidate_models() -> List[str]:
+        """
+        Build a small fallback list of models.
+        - Start with explicit env override if provided.
+        - Then try current stable/known-good models.
+        """
+        primary = os.getenv("ANTHROPIC_MODEL")
+        candidates = [
+            primary,
+            "claude-3-5-sonnet-20241022",  # widely available, strong quality
+            "claude-3-5-haiku-20241022",   # fast
+            "claude-3-haiku-20240307",     # legacy, broad availability
+            "claude-3-sonnet-20240229",    # legacy backup
+        ]
+        # Deduplicate while preserving order and dropping falsy
+        seen = set()
+        unique = []
+        for c in candidates:
+            if c and c not in seen:
+                seen.add(c)
+                unique.append(c)
+        return unique
 
     # Convert messages to Anthropic format
     anthropic_messages = []
@@ -573,81 +591,101 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
     # Retry logic for transient errors
     import random
     max_retries = 2
+    candidate_models = _get_candidate_models()
+    last_error = None
     
-    for attempt in range(max_retries):
-        try:
-            # Initialize client with just the API key (no proxies or other args)
-            client = Anthropic(api_key=api_key)
-            
-            response = client.messages.create(
-                model=_get_anthropic_model(),
-                max_tokens=max_tokens,
-                system=system_prompt if system_prompt else None,
-                messages=anthropic_messages,
-            )
-            
-            # Extract text from response
-            response_text = ""
-            for block in response.content:
-                if block.type == 'text':
-                    response_text += block.text
-            
-            # Detect truncation: Anthropic returns stop_reason
-            # Values: "end_turn" (natural), "max_tokens" (truncated), "stop_sequence"
-            stop_reason = response.stop_reason if hasattr(response, 'stop_reason') else ""
-            is_truncated = stop_reason == "max_tokens"
-            
-            if is_truncated:
-                try:
-                    current_app.logger.info(f"⚠️ Response truncated at {max_tokens} tokens")
-                except:
-                    pass
-            
-            return response_text, is_truncated
+    for model in candidate_models:
+        for attempt in range(max_retries):
+            try:
+                # Initialize client with just the API key (no proxies or other args)
+                client = Anthropic(api_key=api_key)
+                
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    system=system_prompt if system_prompt else None,
+                    messages=anthropic_messages,
+                )
+                
+                # Extract text from response
+                response_text = ""
+                for block in response.content:
+                    if block.type == 'text':
+                        response_text += block.text
+                
+                # Detect truncation: Anthropic returns stop_reason
+                # Values: "end_turn" (natural), "max_tokens" (truncated), "stop_sequence"
+                stop_reason = response.stop_reason if hasattr(response, 'stop_reason') else ""
+                is_truncated = stop_reason == "max_tokens"
+                
+                if is_truncated:
+                    try:
+                        current_app.logger.info(f"⚠️ Response truncated at {max_tokens} tokens")
+                    except:
+                        pass
+                
+                return response_text, is_truncated
 
-        except Exception as e:
-            error_str = str(e)
-            status_code = 0
-            
-            # Try to extract status code from error
-            if "401" in error_str or "unauthorized" in error_str.lower():
-                raise Exception(f"Anthropic API authentication failed. Check your API key: {str(e)}")
-            elif "404" in error_str:
-                raise Exception(f"Anthropic API endpoint not found. This may indicate an API version issue: {str(e)}")
-            elif "429" in error_str or "rate limit" in error_str.lower():
-                # Retry on rate limit
-                if attempt < max_retries - 1:
-                    jitter = random.uniform(0.5, 1.5)
+            except Exception as e:
+                error_str = str(e)
+                last_error = e
+                
+                # Try to extract status code from error
+                if "401" in error_str or "unauthorized" in error_str.lower():
+                    raise Exception(f"Anthropic API authentication failed. Check your API key: {str(e)}")
+                elif "404" in error_str and "model" in error_str.lower():
+                    # Model not found; try next candidate if available
                     try:
-                        current_app.logger.warning(f"⚠️ Rate limit, retrying in {jitter:.2f}s")
+                        current_app.logger.warning(f"Anthropic model '{model}' not found. Trying fallback if available.")
+                    except:
+                        pass
+                    break  # move to next model
+                elif "404" in error_str:
+                    last_error = Exception(f"Anthropic API endpoint not found. This may indicate an API version issue: {str(e)}")
+                    break
+                elif "429" in error_str or "rate limit" in error_str.lower():
+                    # Retry on rate limit
+                    if attempt < max_retries - 1:
+                        jitter = random.uniform(0.5, 1.5)
+                        try:
+                            current_app.logger.warning(f"⚠️ Rate limit, retrying in {jitter:.2f}s")
+                        except:
+                            pass
+                        time.sleep(jitter)
+                        continue
+                    last_error = Exception(f"Anthropic API rate limit exceeded: {str(e)}")
+                    break
+                elif "500" in error_str or "502" in error_str or "503" in error_str or "504" in error_str:
+                    # Retry on server errors
+                    if attempt < max_retries - 1:
+                        jitter = random.uniform(0.5, 1.0)
+                        try:
+                            current_app.logger.warning(f"⚠️ Server error, retrying in {jitter:.2f}s")
+                        except:
+                            pass
+                        time.sleep(jitter)
+                        continue
+                    last_error = Exception(f"Anthropic API server error: {str(e)}")
+                    break
+                
+                # Non-retryable error or max retries reached
+                if attempt < max_retries - 1:
+                    jitter = random.uniform(0.2, 0.5)
+                    try:
+                        current_app.logger.warning(f"⚠️ API error, retrying in {jitter:.2f}s")
                     except:
                         pass
                     time.sleep(jitter)
                     continue
-                raise Exception(f"Anthropic API rate limit exceeded: {str(e)}")
-            elif "500" in error_str or "502" in error_str or "503" in error_str or "504" in error_str:
-                # Retry on server errors
-                if attempt < max_retries - 1:
-                    jitter = random.uniform(0.5, 1.0)
-                    try:
-                        current_app.logger.warning(f"⚠️ Server error, retrying in {jitter:.2f}s")
-                    except:
-                        pass
-                    time.sleep(jitter)
-                    continue
-                raise Exception(f"Anthropic API server error: {str(e)}")
-            
-            # Non-retryable error or max retries reached
-            if attempt < max_retries - 1:
-                jitter = random.uniform(0.2, 0.5)
-                try:
-                    current_app.logger.warning(f"⚠️ API error, retrying in {jitter:.2f}s")
-                except:
-                    pass
-                time.sleep(jitter)
-                continue
-            
-            raise Exception(f"Anthropic API call failed: {str(e)}")
+                
+                last_error = Exception(f"Anthropic API call failed: {str(e)}")
+                break  # break inner loop to try next model if any
+    
+    # Exhausted all models
+    if last_error:
+        tried = ", ".join(candidate_models) if candidate_models else "none"
+        raise Exception(f"Anthropic API call failed after trying models [{tried}]: {last_error}")
+    raise Exception("Anthropic API call failed: no models available to try")
 
 
 def _get_pin_chat_system_prompt(chat: Any) -> str:

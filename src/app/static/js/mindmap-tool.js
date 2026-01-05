@@ -476,7 +476,13 @@
         const containerRect = container.getBoundingClientRect();
         const containerWidth = container.offsetWidth || 800;
         const containerHeight = container.offsetHeight || 500;
-        const padding = 60;
+        // Use container CSS padding as boundary, with a small minimum cushion
+        const computedStyle = getComputedStyle(container);
+        const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+        const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+        const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+        const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+        const padding = Math.max(paddingLeft, paddingRight, paddingTop, paddingBottom, 20);
         const availableWidth = containerWidth - (padding * 2);
         const availableHeight = containerHeight - (padding * 2);
         
@@ -1399,11 +1405,7 @@
      */
     function showConnectionAnchors(node) {
         if (!editMode || isConnecting) return;
-        const anchors = node.querySelectorAll('.mindmap-anchor');
-        anchors.forEach(anchor => {
-            anchor.classList.add('mindmap-anchor--visible');
-            anchor.addEventListener('click', handleAnchorClick);
-        });
+        keepAnchorsVisible(node);
     }
 
     /**
@@ -1415,6 +1417,22 @@
         anchors.forEach(anchor => {
             anchor.classList.remove('mindmap-anchor--visible');
             anchor.removeEventListener('click', handleAnchorClick);
+        });
+    }
+
+    /**
+     * Ensure anchors stay visible and attached to their node
+     */
+    function keepAnchorsVisible(nodeOrId) {
+        const node = typeof nodeOrId === 'string'
+            ? document.querySelector(`[data-node-id="${nodeOrId}"]`)
+            : nodeOrId;
+        if (!node) return;
+        const anchors = node.querySelectorAll('.mindmap-anchor');
+        anchors.forEach(anchor => {
+            anchor.classList.add('mindmap-anchor--visible');
+            anchor.removeEventListener('click', handleAnchorClick);
+            anchor.addEventListener('click', handleAnchorClick);
         });
     }
 
@@ -1539,6 +1557,9 @@
         
         // Change cursor
         document.body.style.cursor = 'crosshair';
+
+        // Keep source anchors visible so user can start additional lines without re-hover
+        keepAnchorsVisible(nodeId);
         
         // Create preview line
         const container = document.getElementById('mindmap-display-container');
@@ -1726,6 +1747,9 @@
                     }
                     updateConnectionRendering();
                 }
+                // Keep anchors visible on both ends so user can draw again
+                keepAnchorsVisible(connectionSource);
+                keepAnchorsVisible(targetNodeId);
             }
         }
         
@@ -2359,6 +2383,12 @@
         // Remove drop target highlights
         const nodes = container ? container.querySelectorAll('[data-node-id]') : [];
         nodes.forEach(node => node.classList.remove('mindmap-node--drop-target'));
+
+        // Keep anchors visible on the node under the cursor (if any) so user can reconnect quickly
+        const hoveredNode = container ? container.querySelector(':hover')?.closest?.('[data-node-id]') : null;
+        if (hoveredNode) {
+            keepAnchorsVisible(hoveredNode);
+        }
     }
 
     /**
