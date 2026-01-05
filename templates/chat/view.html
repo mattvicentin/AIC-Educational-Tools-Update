@@ -603,7 +603,9 @@
     (function(){fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'view.html:706',message:'After flashcards-tool.js script tag',data:{flashcardsToolExists:!!window.flashcardsTool,allScripts:Array.from(document.querySelectorAll('script[src*="flashcards"]')).map(s=>s.src)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});})();
     // #endregion
     </script>
-    <script src="{{ url_for('static', filename='js/mindmap-tool.js') }}?v=1.0"></script>
+    <!-- ELK.js Layout Library for Mind Map -->
+    <script src="https://unpkg.com/elkjs@0.9.2/lib/elk.bundled.js" onerror="console.error('Failed to load ELK.js')" onload="console.log('ELK.js loaded successfully')"></script>
+    <script src="{{ url_for('static', filename='js/mindmap-tool.js') }}?v=1.1"></script>
     <script src="{{ url_for('static', filename='js/tools-menu.js') }}?v=1.1"></script>
     <script>
     // #region agent log

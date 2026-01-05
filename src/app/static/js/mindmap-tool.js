@@ -15,6 +15,20 @@
     let currentMindMap = null;
     let chatId = null;
     let tooltipElement = null;
+    
+    // Edit Mode state management
+    let editMode = false;
+    let originalPositions = new Map(); // Store original ELK positions
+    let customPositions = new Map(); // Store user-modified positions
+    let manualConnections = []; // Store manually created connections
+    let originalConnections = []; // Store original hierarchical connections
+    let contentEdits = new Map(); // Store edited node content
+    let isConnecting = false; // Track connection drawing state
+    let connectionSource = null; // Track source node for connection
+    let connectionSourceAnchor = null; // Track source anchor side
+    let connectionPreviewLine = null; // Preview line element during connection drawing
+    let draggedNode = null; // Currently dragged node
+    let dragOffset = { x: 0, y: 0 }; // Offset for dragging
 
     /**
      * Initialize mind map tool
@@ -95,6 +109,14 @@
         const sendToChatBtn = document.getElementById('mindmap-send-to-chat-btn');
         if (retryBtn) retryBtn.addEventListener('click', resetMindMap);
         if (sendToChatBtn) sendToChatBtn.addEventListener('click', sendToChat);
+
+        // Mode toggle buttons
+        const viewModeBtn = document.getElementById('mindmap-view-mode-btn');
+        const editModeBtn = document.getElementById('mindmap-edit-mode-btn');
+        const resetLayoutBtn = document.getElementById('mindmap-reset-layout-btn');
+        if (viewModeBtn) viewModeBtn.addEventListener('click', () => handleModeToggle('view'));
+        if (editModeBtn) editModeBtn.addEventListener('click', () => handleModeToggle('edit'));
+        if (resetLayoutBtn) resetLayoutBtn.addEventListener('click', handleResetLayout);
 
         // Error retry
         const errorRetryBtn = document.getElementById('mindmap-error-retry');
@@ -415,8 +437,13 @@
 
             // Store mind map and display
             currentMindMap = data.mind_map;
-            renderMindMap(currentMindMap.mind_map_data);
-            showStep(MINDMAP_STEPS.DISPLAY);
+            try {
+                await renderMindMap(currentMindMap.mind_map_data);
+                showStep(MINDMAP_STEPS.DISPLAY);
+            } catch (renderError) {
+                console.error('Mind map rendering error:', renderError);
+                showError('Failed to render mind map: ' + renderError.message);
+            }
             
         } catch (error) {
             console.error('Mind map generation error:', error);
@@ -425,13 +452,33 @@
     }
 
     /**
-     * Render mind map visualization
+     * Render mind map visualization using ELK.js layout library
      */
-    function renderMindMap(mindMapData) {
+    async function renderMindMap(mindMapData) {
         const container = document.getElementById('mindmap-display-container');
         if (!container) return;
 
+        // Check if ELK is available
+        if (typeof ELK === 'undefined') {
+            console.error('ELK.js library not loaded. Available:', Object.keys(window).filter(k => k.toLowerCase().includes('elk')));
+            showError('Layout library failed to load. Please refresh the page.');
+            return;
+        }
+        
+        console.log('ELK.js loaded, starting layout...');
+
         container.innerHTML = '';
+        
+        const root = mindMapData.root;
+        if (!root) return;
+
+        // Get container dimensions
+        const containerRect = container.getBoundingClientRect();
+        const containerWidth = container.offsetWidth || 800;
+        const containerHeight = container.offsetHeight || 500;
+        const padding = 60;
+        const availableWidth = containerWidth - (padding * 2);
+        const availableHeight = containerHeight - (padding * 2);
         
         // Create SVG for connections
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -442,23 +489,13 @@
         svg.style.width = '100%';
         svg.style.height = '100%';
         svg.style.pointerEvents = 'none';
+        svg.style.zIndex = '1';
+        svg.setAttribute('width', containerWidth.toString());
+        svg.setAttribute('height', containerHeight.toString());
+        svg.setAttribute('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
         container.appendChild(svg);
 
-        const root = mindMapData.root;
-        if (!root) return;
-
-        // Get container dimensions (account for padding)
-        const containerRect = container.getBoundingClientRect();
-        const containerWidth = container.offsetWidth || 800;
-        const containerHeight = container.offsetHeight || 500;
-        const padding = 60; // Padding from edges
-        const availableWidth = containerWidth - (padding * 2);
-        const availableHeight = containerHeight - (padding * 2);
-        const centerX = containerWidth / 2;
-        const centerY = containerHeight / 2;
-
-        // Create temporary container for measuring all nodes first
-        // Append to container to ensure same styling context
+        // Measure all nodes first
         const tempContainer = document.createElement('div');
         tempContainer.style.position = 'absolute';
         tempContainer.style.visibility = 'hidden';
@@ -469,87 +506,49 @@
         tempContainer.style.height = containerHeight + 'px';
         container.appendChild(tempContainer);
 
-        // Measure all nodes first
         const nodeSizes = new Map();
+        const nodeTypes = new Map();
+        
+        // Measure root
         const rootNode = createNode(root, 'root', 0, 0);
         tempContainer.appendChild(rootNode);
-        // Force layout calculation
         void rootNode.offsetWidth;
         nodeSizes.set('root', { 
             width: Math.max(rootNode.offsetWidth || 150, 120), 
             height: Math.max(rootNode.offsetHeight || 50, 40)
         });
+        nodeTypes.set('root', 'root');
         tempContainer.removeChild(rootNode);
 
+        // Measure all other nodes
         const nodes = mindMapData.nodes || [];
+        const allNodes = [root, ...nodes];
         
-        // Collect all nodes and measure them
-        nodes.forEach(node => {
-            const nodeEl = createNode(node, 'branch', 0, 0);
+        function measureNode(node, type) {
+            if (nodeSizes.has(node.id)) return;
+            
+            const nodeEl = createNode(node, type, 0, 0);
             tempContainer.appendChild(nodeEl);
-            // Force layout calculation
             void nodeEl.offsetWidth;
             const width = Math.max(nodeEl.offsetWidth || 120, 100);
             const height = Math.max(nodeEl.offsetHeight || 40, 35);
             nodeSizes.set(node.id, { width, height });
+            nodeTypes.set(node.id, type);
             tempContainer.removeChild(nodeEl);
             
-            // Measure children
+            // Measure children recursively
             if (node.children) {
                 node.children.forEach(child => {
-                    const childEl = createNode(child, 'sub', 0, 0);
-                    tempContainer.appendChild(childEl);
-                    // Force layout calculation
-                    void childEl.offsetWidth;
-                    const childWidth = Math.max(childEl.offsetWidth || 100, 80);
-                    const childHeight = Math.max(childEl.offsetHeight || 35, 30);
-                    nodeSizes.set(child.id, { width: childWidth, height: childHeight });
-                    tempContainer.removeChild(childEl);
+                    measureNode(child, 'sub');
                 });
             }
-        });
+        }
         
+        nodes.forEach(node => measureNode(node, 'branch'));
         container.removeChild(tempContainer);
 
-        // Render root node at center (ensure it's within bounds)
-        const rootSize = nodeSizes.get('root');
-        const rootX = Math.max(padding + rootSize.width / 2, Math.min(centerX, containerWidth - padding - rootSize.width / 2));
-        const rootY = Math.max(padding + rootSize.height / 2, Math.min(centerY, containerHeight - padding - rootSize.height / 2));
-        rootNode.style.left = `${rootX}px`;
-        rootNode.style.top = `${rootY}px`;
-        container.appendChild(rootNode);
-        
-        // Update center position if root was adjusted
-        const actualCenterX = rootX;
-        const actualCenterY = rootY;
-
-        // Store node positions for collision detection
-        const nodePositions = new Map();
-        nodePositions.set('root', { x: actualCenterX, y: actualCenterY });
-
-        // Render branch nodes - distribute evenly to left and right sides
+        // Split into left and right sides for two-sided mind map
         const primaryBranches = nodes.filter(n => n.parent === 'root');
-        
-        // Count total nodes to estimate space needed
-        let totalChildren = 0;
-        primaryBranches.forEach(branch => {
-            if (branch.children) totalChildren += branch.children.length;
-        });
-        
-        // Calculate maximum vertical space needed
-        const maxBranchesOnSide = Math.ceil(primaryBranches.length / 2);
-        const maxChildrenPerBranch = Math.max(...primaryBranches.map(b => (b.children || []).length), 0);
-        
-        // Calculate optimal spacing to fit within container
-        const maxVerticalSpace = availableHeight - rootSize.height;
-        const verticalSpacing = Math.min(120, maxVerticalSpace / Math.max(maxBranchesOnSide + maxChildrenPerBranch, 1));
-        
-        // Calculate horizontal offset - ensure it fits with children
-        const maxDepth = 2; // Primary + children (can extend to grandchildren)
-        const estimatedMaxWidth = availableWidth / (maxDepth + 1);
-        const horizontalOffset = Math.min(availableWidth * 0.25, estimatedMaxWidth);
-        
-        // Split branches between left and right sides
         const leftBranches = [];
         const rightBranches = [];
         primaryBranches.forEach((node, index) => {
@@ -560,134 +559,353 @@
             }
         });
         
-        // Position left branches
-        const leftStartY = actualCenterY - ((leftBranches.length - 1) * verticalSpacing) / 2;
-        leftBranches.forEach((node, index) => {
-            const nodeSize = nodeSizes.get(node.id) || { width: 120, height: 40 };
-            let y = leftStartY + (index * verticalSpacing);
-            let x = actualCenterX - horizontalOffset;
+        // Configure ELK layout options - use layered algorithm for tree structure
+        let elkInstance;
+        try {
+            elkInstance = new ELK({
+                defaultLayoutOptions: {
+                    'elk.algorithm': 'layered',
+                    'elk.spacing.nodeNode': '80', // Increased spacing to prevent overlaps
+                    'elk.spacing.edgeNode': '50',
+                    'elk.layered.spacing.nodeNodeBetweenLayers': '150', // Increased layer spacing
+                    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLE',
+                    'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+                }
+            });
+            console.log('ELK instance created successfully');
+        } catch (elkError) {
+            console.error('Failed to create ELK instance:', elkError);
+            throw new Error('ELK initialization failed: ' + elkError.message);
+        }
+
+        try {
+            console.log('Creating two-sided layout with ELK...');
             
-            // Ensure node fits within boundaries
-            y = Math.max(padding + nodeSize.height / 2, Math.min(y, containerHeight - padding - nodeSize.height / 2));
-            x = Math.max(padding + nodeSize.width / 2, x);
+            // Create canvas container for unified transform space
+            const canvas = document.createElement('div');
+            canvas.id = 'mindmap-canvas';
+            canvas.style.position = 'absolute';
+            canvas.style.left = '0';
+            canvas.style.top = '0';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            canvas.style.transformOrigin = '0 0';
+            container.appendChild(canvas);
             
-            // Check for collisions and adjust if needed
-            let finalX = x;
-            let finalY = y;
-            let attempts = 0;
-            const maxAttempts = 20;
+            // Create SVG inside canvas
+            const canvasSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            canvasSvg.id = 'mindmap-edges';
+            canvasSvg.style.position = 'absolute';
+            canvasSvg.style.left = '0';
+            canvasSvg.style.top = '0';
+            canvasSvg.style.width = '100%';
+            canvasSvg.style.height = '100%';
+            canvasSvg.style.pointerEvents = 'none';
+            canvasSvg.setAttribute('width', containerWidth.toString());
+            canvasSvg.setAttribute('height', containerHeight.toString());
+            canvas.appendChild(canvasSvg);
             
-            while (attempts < maxAttempts) {
-                let hasCollision = false;
-                for (const [nodeId, pos] of nodePositions.entries()) {
-                    const existingSize = nodeSizes.get(nodeId) || { width: 100, height: 40 };
-                    const distance = Math.sqrt(Math.pow(finalX - pos.x, 2) + Math.pow(finalY - pos.y, 2));
-                    const minDistance = (nodeSize.width / 2) + (existingSize.width / 2) + 40;
-                    
-                    if (distance < minDistance) {
-                        hasCollision = true;
-                        // Try moving left, but ensure it stays within bounds
-                        const newX = finalX - 25;
-                        if (newX >= padding + nodeSize.width / 2) {
-                            finalX = newX;
-                        } else {
-                            // If can't move left, try vertical adjustment
-                            finalY += (index % 2 === 0 ? -15 : 15);
-                            finalY = Math.max(padding + nodeSize.height / 2, Math.min(finalY, containerHeight - padding - nodeSize.height / 2));
-                        }
-                        break;
+            // Create nodes container inside canvas
+            const nodesContainer = document.createElement('div');
+            nodesContainer.id = 'mindmap-nodes';
+            nodesContainer.style.position = 'absolute';
+            nodesContainer.style.left = '0';
+            nodesContainer.style.top = '0';
+            nodesContainer.style.width = '100%';
+            nodesContainer.style.height = '100%';
+            canvas.appendChild(nodesContainer);
+            
+            // Layout right side
+            let rightLayouted = null;
+            if (rightBranches.length > 0) {
+                const rightGraph = convertToElkGraphSide(mindMapData, nodeSizes, rightBranches, 'RIGHT');
+                console.log('Right graph:', rightGraph);
+                rightLayouted = await elkInstance.layout(rightGraph);
+                console.log('Right layouted:', rightLayouted);
+            }
+            
+            // Layout left side (use RIGHT then mirror)
+            let leftLayouted = null;
+            if (leftBranches.length > 0) {
+                const leftGraph = convertToElkGraphSide(mindMapData, nodeSizes, leftBranches, 'RIGHT');
+                console.log('Left graph:', leftGraph);
+                leftLayouted = await elkInstance.layout(leftGraph);
+                console.log('Left layouted:', leftLayouted);
+            }
+            
+            // Flatten ELK output recursively
+            function flattenElk(layout, map = new Map()) {
+                if (layout.id) map.set(layout.id, layout);
+                (layout.children || []).forEach(ch => flattenElk(ch, map));
+                return map;
+            }
+            
+            const rightNodesById = rightLayouted ? flattenElk(rightLayouted) : new Map();
+            const leftNodesById = leftLayouted ? flattenElk(leftLayouted) : new Map();
+            
+            // Calculate positions with root anchoring
+            const rootX = containerWidth / 2;
+            const rootY = containerHeight / 2;
+            const rootGap = 200; // Space between root and branches
+            
+            const nodePositions = new Map();
+            const nodeElements = new Map();
+            const elkNodesById = new Map(); // Store ELK node objects for edge drawing
+            
+            // Set root position
+            nodePositions.set('root', { x: rootX, y: rootY });
+            const rootEl = createNode(root, 'root', rootX, rootY);
+            nodesContainer.appendChild(rootEl);
+            nodeElements.set('root', rootEl);
+            
+            // Position right side
+            if (rightLayouted && rightLayouted.children && rightLayouted.children.length > 0) {
+                const rightBounds = calculateBounds(rightLayouted);
+                const rightStartX = rootX + rootGap;
+                const rightOffsetY = rootY - rightBounds.height / 2 - rightBounds.y;
+                
+                function positionRightNodes(node) {
+                    if (node.x !== undefined && node.y !== undefined) {
+                        const finalX = rightStartX + node.x + node.width / 2;
+                        const finalY = rightOffsetY + node.y + node.height / 2;
+                        nodePositions.set(node.id, { x: finalX, y: finalY });
+                        elkNodesById.set(node.id, node);
+                    }
+                    if (node.children) {
+                        node.children.forEach(child => positionRightNodes(child));
                     }
                 }
                 
-                if (!hasCollision) break;
-                attempts++;
+                function renderRightNodes(node) {
+                    const pos = nodePositions.get(node.id);
+                    if (pos && node.id !== 'root') {
+                        const nodeData = nodes.find(n => n.id === node.id) ||
+                                       nodes.flatMap(n => n.children || []).find(c => c.id === node.id);
+                        if (nodeData) {
+                            const type = nodeTypes.get(node.id) || 'branch';
+                            const nodeEl = createNode(nodeData, type, pos.x, pos.y);
+                            nodesContainer.appendChild(nodeEl);
+                            nodeElements.set(node.id, nodeEl);
+                        }
+                    }
+                    if (node.children) {
+                        node.children.forEach(child => renderRightNodes(child));
+                    }
+                }
+                
+                rightLayouted.children.forEach(child => {
+                    positionRightNodes(child);
+                    renderRightNodes(child);
+                });
             }
             
-            // Final boundary check
-            finalX = Math.max(padding + nodeSize.width / 2, finalX);
-            finalY = Math.max(padding + nodeSize.height / 2, Math.min(finalY, containerHeight - padding - nodeSize.height / 2));
+            // Position left side (mirror)
+            if (leftLayouted && leftLayouted.children && leftLayouted.children.length > 0) {
+                const leftBounds = calculateBounds(leftLayouted);
+                const leftWidth = leftBounds.width;
+                const leftStartX = rootX - rootGap - leftWidth;
+                const leftOffsetY = rootY - leftBounds.height / 2 - leftBounds.y;
+                
+                function positionLeftNodes(node) {
+                    if (node.x !== undefined && node.y !== undefined) {
+                        // Mirror horizontally
+                        const mirroredX = leftWidth - (node.x + node.width);
+                        const finalX = leftStartX + mirroredX + node.width / 2;
+                        const finalY = leftOffsetY + node.y + node.height / 2;
+                        nodePositions.set(node.id, { x: finalX, y: finalY });
+                        elkNodesById.set(node.id, node);
+                    }
+                    if (node.children) {
+                        node.children.forEach(child => positionLeftNodes(child));
+                    }
+                }
+                
+                function renderLeftNodes(node) {
+                    const pos = nodePositions.get(node.id);
+                    if (pos && node.id !== 'root') {
+                        const nodeData = nodes.find(n => n.id === node.id) ||
+                                       nodes.flatMap(n => n.children || []).find(c => c.id === node.id);
+                        if (nodeData) {
+                            const type = nodeTypes.get(node.id) || 'branch';
+                            const nodeEl = createNode(nodeData, type, pos.x, pos.y);
+                            nodesContainer.appendChild(nodeEl);
+                            nodeElements.set(node.id, nodeEl);
+                        }
+                    }
+                    if (node.children) {
+                        node.children.forEach(child => renderLeftNodes(child));
+                    }
+                }
+                
+                leftLayouted.children.forEach(child => {
+                    positionLeftNodes(child);
+                    renderLeftNodes(child);
+                });
+            }
             
-            // Create and position node
-            const nodeEl = createNode(node, 'branch', finalX, finalY);
+            // Center by root (root-anchored centering)
+            const rootPos = nodePositions.get('root');
+            if (rootPos) {
+                const rootElkNode = { x: rootX - (nodeSizes.get('root').width / 2), 
+                                    y: rootY - (nodeSizes.get('root').height / 2),
+                                    width: nodeSizes.get('root').width,
+                                    height: nodeSizes.get('root').height };
+                const { cx, cy } = getNodeCenter(rootElkNode);
+                const offset = computeRootAnchoredOffset(rootElkNode, containerWidth, containerHeight);
+                
+                // Apply offset to all nodes
+                const adjustedPositions = new Map();
+                for (const [nodeId, pos] of nodePositions.entries()) {
+                    adjustedPositions.set(nodeId, {
+                        x: pos.x + offset.dx,
+                        y: pos.y + offset.dy
+                    });
+                }
+                
+                // Update node positions (use custom positions if available, otherwise use adjusted)
+                for (const [nodeId, pos] of adjustedPositions.entries()) {
+                    // Check if there's a custom position, otherwise use adjusted position
+                    const finalPos = customPositions.get(nodeId) || pos;
+                    nodePositions.set(nodeId, finalPos);
+                    const nodeEl = nodeElements.get(nodeId);
+                    if (nodeEl) {
+                        nodeEl.style.left = `${finalPos.x}px`;
+                        nodeEl.style.top = `${finalPos.y}px`;
+                    }
+                }
+                
+                // Apply same transform to canvas
+                canvas.style.transform = `translate(${offset.dx}px, ${offset.dy}px)`;
+            }
+            
+            // Clear custom positions and manual connections on new render
+            customPositions.clear();
+            manualConnections = [];
+            contentEdits.clear();
+            originalConnections = []; // Clear original connections - no automatic lines
+            
+            // Apply collision detection to prevent piling up BEFORE storing original positions
+            ensureNoOverlaps(nodePositions, nodeSizes, nodeElements, containerWidth, containerHeight, padding);
+            
+            // Store original positions (after ensuring no overlaps)
+            originalPositions.clear();
+            for (const [nodeId, pos] of nodePositions.entries()) {
+                originalPositions.set(nodeId, { x: pos.x, y: pos.y });
+            }
+            
+            // Store original connections data structure (for reference, but don't render lines)
+            // Users will create connections manually in Edit Mode
+            function storeConnectionData(nodeData, parentId = 'root') {
+                if (nodeData.children) {
+                    nodeData.children.forEach(child => {
+                        const parentPos = nodePositions.get(parentId);
+                        const childPos = nodePositions.get(child.id);
+                        
+                        if (parentPos && childPos) {
+                            // Determine side
+                            const side = childPos.x >= parentPos.x ? 1 : -1;
+                            
+                            // Store connection data (but don't render)
+                            originalConnections.push({
+                                id: `orig-${parentId}-${child.id}`,
+                                source: parentId,
+                                sourceAnchor: side === 1 ? 'right' : 'left',
+                                target: child.id,
+                                targetAnchor: side === 1 ? 'left' : 'right',
+                                isManual: false
+                            });
+                        }
+                        
+                        storeConnectionData(child, child.id);
+                    });
+                }
+            }
+            
+            // Store connection data (for reference only, no rendering)
+            storeConnectionData(root);
+            nodes.filter(n => n.parent === 'root').forEach(node => storeConnectionData(node, node.id));
+            
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
+        } catch (error) {
+            console.error('ELK layout error:', error);
+            console.error('Error stack:', error.stack);
+            showError('Failed to layout mind map: ' + error.message);
+            // Fallback: simple centered layout
+            console.log('Attempting fallback rendering...');
+            renderSimpleLayout(mindMapData, nodeSizes, nodeTypes, container, svg, containerWidth, containerHeight, padding, nodes);
+        }
+    }
+
+    /**
+     * Simple fallback layout when ELK fails
+     */
+    function renderSimpleLayout(mindMapData, nodeSizes, nodeTypes, container, svg, containerWidth, containerHeight, padding, nodes) {
+        const root = mindMapData.root;
+        const centerX = containerWidth / 2;
+        const centerY = containerHeight / 2;
+        
+        // Render root
+        const rootEl = createNode(root, 'root', centerX, centerY);
+        container.appendChild(rootEl);
+        
+        // Simple two-sided layout
+        const primaryBranches = nodes.filter(n => n.parent === 'root');
+        const horizontalSpacing = 200;
+        const verticalSpacing = 100;
+        
+        primaryBranches.forEach((node, index) => {
+            const side = index % 2 === 0 ? -1 : 1;
+            const x = centerX + (side * horizontalSpacing);
+            const y = centerY + ((Math.floor(index / 2) - (primaryBranches.length - 1) / 4) * verticalSpacing);
+            
+            const nodeEl = createNode(node, 'branch', x, y);
             container.appendChild(nodeEl);
-            nodePositions.set(node.id, { x: finalX, y: finalY });
             
-            // Draw connection line from root to branch
-            drawConnection(svg, actualCenterX, actualCenterY, finalX, finalY);
+            // Draw connection
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const dx = Math.max(40, Math.abs(x - centerX) * 0.35);
+            path.setAttribute('d',
+                `M ${centerX} ${centerY} ` +
+                `C ${centerX + dx * side} ${centerY}, ` +
+                `${x - dx * side} ${y}, ` +
+                `${x} ${y}`
+            );
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#93c5fd');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('class', 'mindmap-connection');
+            svg.appendChild(path);
             
-            // Render children extending further left
-            if (node.children && node.children.length > 0) {
-                // Calculate child spacing to fit within boundaries
-                const maxChildSpacing = Math.max(0, finalX - padding - nodeSize.width / 2);
-                const childSpacing = Math.min(140, maxChildSpacing);
-                renderChildren(node.children, node.id, finalX, finalY, nodePositions, nodeSizes, svg, container, childSpacing, -1, containerWidth, containerHeight, padding); // -1 = left direction
+            // Render children
+            if (node.children) {
+                node.children.forEach((child, childIndex) => {
+                    const childX = x + (side * horizontalSpacing * 0.7);
+                    const childY = y + ((childIndex - (node.children.length - 1) / 2) * verticalSpacing * 0.8);
+                    const childEl = createNode(child, 'sub', childX, childY);
+                    container.appendChild(childEl);
+                    
+                    // Draw child connection
+                    const childPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const childDx = Math.max(30, Math.abs(childX - x) * 0.3);
+                    childPath.setAttribute('d',
+                        `M ${x} ${y} ` +
+                        `C ${x + childDx * side} ${y}, ` +
+                        `${childX - childDx * side} ${childY}, ` +
+                        `${childX} ${childY}`
+                    );
+                    childPath.setAttribute('fill', 'none');
+                    childPath.setAttribute('stroke', '#93c5fd');
+                    childPath.setAttribute('stroke-width', '2');
+                    childPath.setAttribute('class', 'mindmap-connection');
+                    svg.appendChild(childPath);
+                });
             }
         });
         
-        // Position right branches
-        const rightStartY = actualCenterY - ((rightBranches.length - 1) * verticalSpacing) / 2;
-        rightBranches.forEach((node, index) => {
-            const nodeSize = nodeSizes.get(node.id) || { width: 120, height: 40 };
-            let y = rightStartY + (index * verticalSpacing);
-            let x = actualCenterX + horizontalOffset;
-            
-            // Ensure node fits within boundaries
-            y = Math.max(padding + nodeSize.height / 2, Math.min(y, containerHeight - padding - nodeSize.height / 2));
-            x = Math.min(containerWidth - padding - nodeSize.width / 2, x);
-            
-            // Check for collisions and adjust if needed
-            let finalX = x;
-            let finalY = y;
-            let attempts = 0;
-            const maxAttempts = 20;
-            
-            while (attempts < maxAttempts) {
-                let hasCollision = false;
-                for (const [nodeId, pos] of nodePositions.entries()) {
-                    const existingSize = nodeSizes.get(nodeId) || { width: 100, height: 40 };
-                    const distance = Math.sqrt(Math.pow(finalX - pos.x, 2) + Math.pow(finalY - pos.y, 2));
-                    const minDistance = (nodeSize.width / 2) + (existingSize.width / 2) + 40;
-                    
-                    if (distance < minDistance) {
-                        hasCollision = true;
-                        // Try moving right, but ensure it stays within bounds
-                        const newX = finalX + 25;
-                        if (newX <= containerWidth - padding - nodeSize.width / 2) {
-                            finalX = newX;
-                        } else {
-                            // If can't move right, try vertical adjustment
-                            finalY += (index % 2 === 0 ? -15 : 15);
-                            finalY = Math.max(padding + nodeSize.height / 2, Math.min(finalY, containerHeight - padding - nodeSize.height / 2));
-                        }
-                        break;
-                    }
-                }
-                
-                if (!hasCollision) break;
-                attempts++;
-            }
-            
-            // Final boundary check
-            finalX = Math.min(containerWidth - padding - nodeSize.width / 2, finalX);
-            finalY = Math.max(padding + nodeSize.height / 2, Math.min(finalY, containerHeight - padding - nodeSize.height / 2));
-            
-            // Create and position node
-            const nodeEl = createNode(node, 'branch', finalX, finalY);
-            container.appendChild(nodeEl);
-            nodePositions.set(node.id, { x: finalX, y: finalY });
-            
-            // Draw connection line from root to branch
-            drawConnection(svg, actualCenterX, actualCenterY, finalX, finalY);
-            
-            // Render children extending further right
-            if (node.children && node.children.length > 0) {
-                // Calculate child spacing to fit within boundaries
-                const maxChildSpacing = Math.max(0, containerWidth - padding - finalX - nodeSize.width / 2);
-                const childSpacing = Math.min(140, maxChildSpacing);
-                renderChildren(node.children, node.id, finalX, finalY, nodePositions, nodeSizes, svg, container, childSpacing, 1, containerWidth, containerHeight, padding); // 1 = right direction
-            }
-        });
-
         // Initialize Lucide icons
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
@@ -695,97 +913,413 @@
     }
 
     /**
-     * Render child nodes recursively with collision detection and boundary checking
-     * direction: -1 for left, 1 for right
+     * Convert mind map data structure to ELK graph format for one side
      */
-    function renderChildren(children, parentId, parentX, parentY, nodePositions, nodeSizes, svg, container, childSpacing, direction, containerWidth, containerHeight, padding) {
-        if (!children || children.length === 0) return;
-
-        // Calculate vertical spacing for children - ensure they fit vertically
-        const availableVerticalSpace = containerHeight - (padding * 2);
-        const verticalSpacing = Math.min(90, availableVerticalSpace / Math.max(children.length, 1));
-        const startY = parentY - ((children.length - 1) * verticalSpacing) / 2;
+    function convertToElkGraphSide(mindMapData, nodeSizes, sideBranches, direction) {
+        const nodeMap = new Map();
         
-        children.forEach((child, index) => {
-            const childSize = nodeSizes.get(child.id) || { width: 100, height: 35 };
-            let y = startY + (index * verticalSpacing);
-            let x = parentX + (direction * childSpacing); // Extend in the same direction as parent
+        // Create ELK node
+        function createElkNode(nodeData) {
+            if (nodeMap.has(nodeData.id)) return nodeMap.get(nodeData.id);
             
-            // Ensure node fits within boundaries
-            y = Math.max(padding + childSize.height / 2, Math.min(y, containerHeight - padding - childSize.height / 2));
-            if (direction === -1) {
-                x = Math.max(padding + childSize.width / 2, x);
-            } else {
-                x = Math.min(containerWidth - padding - childSize.width / 2, x);
+            const elkNode = {
+                id: nodeData.id,
+                width: nodeSizes.get(nodeData.id)?.width || 120,
+                height: nodeSizes.get(nodeData.id)?.height || 40,
+                children: []
+            };
+            nodeMap.set(nodeData.id, elkNode);
+            return elkNode;
+        }
+        
+        // Build hierarchical structure
+        function buildHierarchy(nodeData) {
+            const elkNode = createElkNode(nodeData);
+            
+            if (nodeData.children && nodeData.children.length > 0) {
+                nodeData.children.forEach(childData => {
+                    const childElkNode = buildHierarchy(childData);
+                    elkNode.children.push(childElkNode);
+                });
             }
             
-            // Check for collisions and adjust if needed
-            let finalX = x;
-            let finalY = y;
-            let attempts = 0;
-            const maxAttempts = 20;
+            return elkNode;
+        }
+        
+        // Build ELK nodes for all branches on this side
+        const elkBranches = sideBranches.map(branch => buildHierarchy(branch));
+        
+        return {
+            id: 'side-root',
+            children: elkBranches,
+            layoutOptions: {
+                'elk.algorithm': 'layered',
+                'elk.direction': direction,
+                'elk.spacing.nodeNode': '60',
+                'elk.spacing.edgeNode': '40',
+                'elk.layered.spacing.nodeNodeBetweenLayers': '120',
+                'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLE',
+                'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+            }
+        };
+    }
+
+    /**
+     * Get node center coordinates
+     */
+    function getNodeCenter(n) {
+        return { cx: n.x + n.width / 2, cy: n.y + n.height / 2 };
+    }
+
+    /**
+     * Compute root-anchored offset to center root in viewport
+     */
+    function computeRootAnchoredOffset(rootNode, viewportW, viewportH) {
+        const { cx, cy } = getNodeCenter(rootNode);
+        return {
+            dx: (viewportW / 2) - cx,
+            dy: (viewportH / 2) - cy
+        };
+    }
+
+    /**
+     * Get anchor point on right side of node
+     */
+    function anchorRight(n) {
+        return { x: n.x + n.width, y: n.y + n.height / 2 };
+    }
+
+    /**
+     * Get anchor point on left side of node
+     */
+    function anchorLeft(n) {
+        return { x: n.x, y: n.y + n.height / 2 };
+    }
+
+    /**
+     * Create bezier path between two points
+     */
+    function bezierPath(p, c) {
+        const dx = Math.max(60, Math.abs(c.x - p.x) * 0.35);
+        const side = c.x >= p.x ? 1 : -1;
+        return `M ${p.x} ${p.y} C ${p.x + dx * side} ${p.y}, ${c.x - dx * side} ${c.y}, ${c.x} ${c.y}`;
+    }
+
+    /**
+     * Calculate bounding box of ELK graph
+     */
+    function calculateBounds(node) {
+        let minX = node.x || 0;
+        let maxX = (node.x || 0) + (node.width || 0);
+        let minY = node.y || 0;
+        let maxY = (node.y || 0) + (node.height || 0);
+        
+        function traverse(n) {
+            if (n.x !== undefined) {
+                minX = Math.min(minX, n.x);
+                maxX = Math.max(maxX, n.x + (n.width || 0));
+            }
+            if (n.y !== undefined) {
+                minY = Math.min(minY, n.y);
+                maxY = Math.max(maxY, n.y + (n.height || 0));
+            }
+            if (n.children) {
+                n.children.forEach(child => traverse(child));
+            }
+        }
+        
+        if (node.children) {
+            node.children.forEach(child => traverse(child));
+        }
+        
+        return {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+        };
+    }
+
+    /**
+     * Resolve collisions by pushing overlapping nodes apart
+     * Implements a relaxation pass as recommended by GPT
+     * Checks both vertical and horizontal overlaps
+     */
+    function resolveCollisions(nodePositions, nodeSizes, containerWidth, containerHeight, padding) {
+        const minSpacing = 20; // Minimum space between node edges
+        const maxIterations = 10;
+        
+        for (let iteration = 0; iteration < maxIterations; iteration++) {
+            let hasCollisions = false;
             
-            while (attempts < maxAttempts) {
-                let hasCollision = false;
-                for (const [nodeId, pos] of nodePositions.entries()) {
-                    const existingSize = nodeSizes.get(nodeId) || { width: 100, height: 40 };
-                    const distance = Math.sqrt(Math.pow(finalX - pos.x, 2) + Math.pow(finalY - pos.y, 2));
-                    const minDistance = (childSize.width / 2) + (existingSize.width / 2) + 35;
+            // Check all pairs of nodes for collisions
+            const nodeIds = Array.from(nodePositions.keys());
+            
+            for (let i = 0; i < nodeIds.length; i++) {
+                for (let j = i + 1; j < nodeIds.length; j++) {
+                    const nodeId1 = nodeIds[i];
+                    const nodeId2 = nodeIds[j];
+                    const pos1 = nodePositions.get(nodeId1);
+                    const pos2 = nodePositions.get(nodeId2);
+                    const size1 = nodeSizes.get(nodeId1) || { width: 120, height: 40 };
+                    const size2 = nodeSizes.get(nodeId2) || { width: 120, height: 40 };
                     
-                    if (distance < minDistance) {
-                        hasCollision = true;
-                        // Adjust position - move further in direction or adjust vertically
-                        if (attempts % 2 === 0) {
-                            const newX = finalX + (direction * 20);
-                            // Check if new position is within bounds
-                            if (direction === -1 && newX >= padding + childSize.width / 2) {
-                                finalX = newX;
-                            } else if (direction === 1 && newX <= containerWidth - padding - childSize.width / 2) {
-                                finalX = newX;
-                            } else {
-                                // Can't move further, try vertical adjustment
-                                finalY += (index % 2 === 0 ? -12 : 12);
-                                finalY = Math.max(padding + childSize.height / 2, Math.min(finalY, containerHeight - padding - childSize.height / 2));
-                            }
-                        } else {
-                            finalY += (index % 2 === 0 ? -12 : 12);
-                            finalY = Math.max(padding + childSize.height / 2, Math.min(finalY, containerHeight - padding - childSize.height / 2));
+                    if (!pos1 || !pos2) continue;
+                    
+                    // Skip root node collisions (it's centered)
+                    if (nodeId1 === 'root' || nodeId2 === 'root') continue;
+                    
+                    // Calculate distances
+                    const distanceX = Math.abs(pos1.x - pos2.x);
+                    const distanceY = Math.abs(pos1.y - pos2.y);
+                    const minDistanceX = (size1.width / 2) + (size2.width / 2) + minSpacing;
+                    const minDistanceY = (size1.height / 2) + (size2.height / 2) + minSpacing;
+                    
+                    // Check if nodes overlap
+                    if (distanceX < minDistanceX && distanceY < minDistanceY) {
+                        hasCollisions = true;
+                        
+                        // Calculate overlap amounts
+                        const overlapX = minDistanceX - distanceX;
+                        const overlapY = minDistanceY - distanceY;
+                        
+                        // Determine push direction based on relative positions
+                        const pushX = overlapX / 2;
+                        const pushY = overlapY / 2;
+                        
+                        // Determine which direction to push (away from each other)
+                        const dirX = pos1.x < pos2.x ? -1 : 1;
+                        const dirY = pos1.y < pos2.y ? -1 : 1;
+                        
+                        // Calculate new positions
+                        let newX1 = pos1.x + (dirX * pushX);
+                        let newY1 = pos1.y + (dirY * pushY);
+                        let newX2 = pos2.x - (dirX * pushX);
+                        let newY2 = pos2.y - (dirY * pushY);
+                        
+                        // Ensure nodes stay within bounds
+                        const finalX1 = Math.max(
+                            padding + size1.width / 2,
+                            Math.min(newX1, containerWidth - padding - size1.width / 2)
+                        );
+                        const finalY1 = Math.max(
+                            padding + size1.height / 2,
+                            Math.min(newY1, containerHeight - padding - size1.height / 2)
+                        );
+                        const finalX2 = Math.max(
+                            padding + size2.width / 2,
+                            Math.min(newX2, containerWidth - padding - size2.width / 2)
+                        );
+                        const finalY2 = Math.max(
+                            padding + size2.height / 2,
+                            Math.min(newY2, containerHeight - padding - size2.height / 2)
+                        );
+                        
+                        // Update positions
+                        nodePositions.set(nodeId1, { x: finalX1, y: finalY1 });
+                        nodePositions.set(nodeId2, { x: finalX2, y: finalY2 });
+                        
+                        // Update DOM
+                        const el1 = document.querySelector(`[data-node-id="${nodeId1}"]`);
+                        const el2 = document.querySelector(`[data-node-id="${nodeId2}"]`);
+                        if (el1) {
+                            el1.style.left = `${finalX1}px`;
+                            el1.style.top = `${finalY1}px`;
                         }
-                        break;
+                        if (el2) {
+                            el2.style.left = `${finalX2}px`;
+                            el2.style.top = `${finalY2}px`;
+                        }
                     }
                 }
-                
-                if (!hasCollision) break;
-                attempts++;
             }
             
-            // Final boundary check
-            if (direction === -1) {
-                finalX = Math.max(padding + childSize.width / 2, finalX);
+            if (!hasCollisions) break;
+        }
+    }
+
+    /**
+     * Center the entire mind map by computing bounding box of all nodes
+     * This ensures the root stays centered even if the map is unbalanced
+     */
+    function centerMindMapByBoundingBox(nodePositions, containerWidth, containerHeight, padding) {
+        if (nodePositions.size === 0) return;
+        
+        // Find bounding box of all nodes (accounting for actual node sizes)
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        
+        for (const [nodeId, pos] of nodePositions.entries()) {
+            const nodeEl = document.querySelector(`[data-node-id="${nodeId}"]`);
+            if (nodeEl) {
+                const nodeWidth = nodeEl.offsetWidth || 120;
+                const nodeHeight = nodeEl.offsetHeight || 40;
+                // Account for node size when calculating bounds
+                minX = Math.min(minX, pos.x - nodeWidth / 2);
+                maxX = Math.max(maxX, pos.x + nodeWidth / 2);
+                minY = Math.min(minY, pos.y - nodeHeight / 2);
+                maxY = Math.max(maxY, pos.y + nodeHeight / 2);
             } else {
-                finalX = Math.min(containerWidth - padding - childSize.width / 2, finalX);
+                // Fallback
+                minX = Math.min(minX, pos.x);
+                maxX = Math.max(maxX, pos.x);
+                minY = Math.min(minY, pos.y);
+                maxY = Math.max(maxY, pos.y);
             }
-            finalY = Math.max(padding + childSize.height / 2, Math.min(finalY, containerHeight - padding - childSize.height / 2));
-            
-            // Create and position node
-            const nodeEl = createNode(child, 'sub', finalX, finalY);
-            container.appendChild(nodeEl);
-            nodePositions.set(child.id, { x: finalX, y: finalY });
-            
-            // Draw connection line from parent to child
-            drawConnection(svg, parentX, parentY, finalX, finalY);
-            
-            // Render grandchildren if any, continuing in same direction
-            if (child.children && child.children.length > 0) {
-                // Calculate spacing to fit within boundaries
-                let maxGrandchildSpacing;
-                if (direction === -1) {
-                    maxGrandchildSpacing = Math.max(0, finalX - padding - childSize.width / 2);
-                } else {
-                    maxGrandchildSpacing = Math.max(0, containerWidth - padding - finalX - childSize.width / 2);
-                }
-                const grandchildSpacing = Math.min(120, maxGrandchildSpacing);
-                renderChildren(child.children, child.id, finalX, finalY, nodePositions, nodeSizes, svg, container, grandchildSpacing, direction, containerWidth, containerHeight, padding);
+        }
+        
+        // Calculate center of current layout
+        const currentCenterX = (minX + maxX) / 2;
+        const currentCenterY = (minY + maxY) / 2;
+        
+        // Calculate desired center
+        const desiredCenterX = containerWidth / 2;
+        const desiredCenterY = containerHeight / 2;
+        
+        // Calculate offset needed
+        const offsetX = desiredCenterX - currentCenterX;
+        const offsetY = desiredCenterY - currentCenterY;
+        
+        // Apply offset to all nodes
+        const adjustedPositions = new Map();
+        for (const [nodeId, pos] of nodePositions.entries()) {
+            const nodeEl = document.querySelector(`[data-node-id="${nodeId}"]`);
+            if (nodeEl) {
+                const newX = pos.x + offsetX;
+                const newY = pos.y + offsetY;
+                
+                // Get node dimensions
+                const nodeWidth = nodeEl.offsetWidth || 120;
+                const nodeHeight = nodeEl.offsetHeight || 40;
+                
+                // Ensure node stays within bounds
+                const finalX = Math.max(
+                    padding + nodeWidth / 2,
+                    Math.min(newX, containerWidth - padding - nodeWidth / 2)
+                );
+                const finalY = Math.max(
+                    padding + nodeHeight / 2,
+                    Math.min(newY, containerHeight - padding - nodeHeight / 2)
+                );
+                
+                nodeEl.style.left = `${finalX}px`;
+                nodeEl.style.top = `${finalY}px`;
+                adjustedPositions.set(nodeId, { x: finalX, y: finalY });
+            }
+        }
+        
+        // Update positions map
+        nodePositions.clear();
+        for (const [nodeId, pos] of adjustedPositions.entries()) {
+            nodePositions.set(nodeId, pos);
+        }
+    }
+
+    // Align nodePositions with rendered DOM centers
+    function syncPositionsWithDom(nodePositions, container) {
+        const containerRect = container.getBoundingClientRect();
+        const updated = new Map();
+        for (const [nodeId] of nodePositions.entries()) {
+            const el = container.querySelector(`[data-node-id="${nodeId}"]`);
+            if (!el) continue;
+            const rect = el.getBoundingClientRect();
+            updated.set(nodeId, {
+                x: rect.left - containerRect.left + rect.width / 2,
+                y: rect.top - containerRect.top + rect.height / 2
+            });
+        }
+        nodePositions.clear();
+        for (const [id, pos] of updated.entries()) {
+            nodePositions.set(id, pos);
+        }
+    }
+
+    // Draw all connections with bezier paths
+    function drawAllConnections(svg, mindMapData, nodePositions, container) {
+        const rootPos = nodePositions.get('root');
+        if (!rootPos) return;
+        const nodes = mindMapData.nodes || [];
+
+        // Helper to get DOM rect info
+        function getRect(nodeId) {
+            const el = container.querySelector(`[data-node-id="${nodeId}"]`);
+            if (!el) return null;
+            const cRect = container.getBoundingClientRect();
+            const r = el.getBoundingClientRect();
+            return {
+                left: r.left - cRect.left,
+                right: r.right - cRect.left,
+                top: r.top - cRect.top,
+                bottom: r.bottom - cRect.top,
+                cx: r.left - cRect.left + r.width / 2,
+                cy: r.top - cRect.top + r.height / 2
+            };
+        }
+
+        function drawEdge(parentId, childId) {
+            const p = getRect(parentId);
+            const c = getRect(childId);
+            if (!p || !c) return;
+            const side = c.cx >= p.cx ? 1 : -1;
+            const parentAnchor = side === 1 ? { x: p.right, y: p.cy } : { x: p.left, y: p.cy };
+            const childAnchor = side === 1 ? { x: c.left, y: c.cy } : { x: c.right, y: c.cy };
+            const dx = Math.max(40, Math.abs(childAnchor.x - parentAnchor.x) * 0.35);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M ${parentAnchor.x} ${parentAnchor.y} C ${parentAnchor.x + dx * side} ${parentAnchor.y}, ${childAnchor.x - dx * side} ${childAnchor.y}, ${childAnchor.x} ${childAnchor.y}`);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#93c5fd');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('class', 'mindmap-connection');
+            svg.appendChild(path);
+        }
+
+        nodes.filter(n => n.parent === 'root').forEach(node => {
+            drawEdge('root', node.id);
+            drawChildEdges(node);
+        });
+
+        function drawChildEdges(parentNode) {
+            if (!parentNode.children) return;
+            parentNode.children.forEach(child => {
+                drawEdge(parentNode.id, child.id);
+                drawChildEdges(child);
+            });
+        }
+    }
+
+    /**
+     * Redraw all connections after nodes are repositioned
+     */
+    function redrawConnections(svg, mindMapData, nodePositions) {
+        const rootPos = nodePositions.get('root');
+        if (!rootPos) return;
+        
+        const nodes = mindMapData.nodes || [];
+        
+        // Draw connections from root to primary branches
+        nodes.filter(n => n.parent === 'root').forEach(node => {
+            const nodePos = nodePositions.get(node.id);
+            if (nodePos) {
+                drawConnection(svg, rootPos.x, rootPos.y, nodePos.x, nodePos.y);
+                
+                // Draw connections to children recursively
+                drawChildConnections(svg, node, nodePos, nodePositions);
+            }
+        });
+    }
+
+    /**
+     * Recursively draw connections for children
+     */
+    function drawChildConnections(svg, parentNode, parentPos, nodePositions) {
+        if (!parentNode.children || parentNode.children.length === 0) return;
+        
+        parentNode.children.forEach(child => {
+            const childPos = nodePositions.get(child.id);
+            if (childPos) {
+                drawConnection(svg, parentPos.x, parentPos.y, childPos.x, childPos.y);
+                // Recursively draw grandchildren
+                drawChildConnections(svg, child, childPos, nodePositions);
             }
         });
     }
@@ -796,22 +1330,628 @@
     function createNode(nodeData, type, x, y) {
         const node = document.createElement('div');
         node.className = `mindmap-node-${type}`;
-        node.textContent = nodeData.label;
+        
+        // Apply content edits if any
+        const displayLabel = contentEdits.get(nodeData.id) || nodeData.label;
+        node.textContent = displayLabel;
         node.dataset.nodeId = nodeData.id;
         node.dataset.explanation = nodeData.explanation || '';
+        node.dataset.editable = 'true';
         
-        // Position absolutely
+        // Position absolutely - check for custom position first
+        const nodeId = nodeData.id;
+        const customPos = customPositions.get(nodeId);
+        const finalX = customPos ? customPos.x : x;
+        const finalY = customPos ? customPos.y : y;
+        
         node.style.position = 'absolute';
-        node.style.left = `${x}px`;
-        node.style.top = `${y}px`;
+        node.style.left = `${finalX}px`;
+        node.style.top = `${finalY}px`;
         node.style.transform = 'translate(-50%, -50%)';
         
-        // Add hover event listeners for tooltip
-        node.addEventListener('mouseenter', (e) => showTooltip(e, nodeData.explanation));
-        node.addEventListener('mouseleave', hideTooltip);
-        node.addEventListener('mousemove', (e) => updateTooltipPosition(e));
+        // Add hover event listeners for tooltip (only in View Mode)
+        node.addEventListener('mouseenter', (e) => {
+            if (!editMode) {
+                showTooltip(e, nodeData.explanation);
+            } else {
+                // In Edit Mode, show anchors and edit button
+                showConnectionAnchors(node);
+                showEditButton(node);
+            }
+        });
+        node.addEventListener('mouseleave', (e) => {
+            if (!editMode) {
+                hideTooltip();
+            } else {
+                hideConnectionAnchors(node);
+                hideEditButton(node);
+            }
+        });
+        node.addEventListener('mousemove', (e) => {
+            if (!editMode) {
+                updateTooltipPosition(e);
+            }
+        });
+        
+        // Add anchor points (hidden by default)
+        addConnectionAnchors(node);
         
         return node;
+    }
+
+    /**
+     * Add connection anchors to a node
+     */
+    function addConnectionAnchors(node) {
+        const anchors = ['left', 'right', 'top', 'bottom'];
+        anchors.forEach(side => {
+            const anchor = document.createElement('div');
+            anchor.className = 'mindmap-anchor';
+            anchor.dataset.anchorSide = side;
+            anchor.dataset.nodeId = node.getAttribute('data-node-id');
+            anchor.setAttribute('aria-label', `Connect from ${side} side`);
+            node.appendChild(anchor);
+        });
+    }
+
+    /**
+     * Show connection anchors on node hover (Edit Mode)
+     */
+    function showConnectionAnchors(node) {
+        if (!editMode || isConnecting) return;
+        const anchors = node.querySelectorAll('.mindmap-anchor');
+        anchors.forEach(anchor => {
+            anchor.classList.add('mindmap-anchor--visible');
+            anchor.addEventListener('click', handleAnchorClick);
+        });
+    }
+
+    /**
+     * Hide connection anchors
+     */
+    function hideConnectionAnchors(node) {
+        if (isConnecting) return; // Keep visible while connecting
+        const anchors = node.querySelectorAll('.mindmap-anchor');
+        anchors.forEach(anchor => {
+            anchor.classList.remove('mindmap-anchor--visible');
+            anchor.removeEventListener('click', handleAnchorClick);
+        });
+    }
+
+    /**
+     * Get anchor position in SVG coordinate system
+     * Gets the actual rendered position of the anchor element and converts to SVG coordinates
+     */
+    function getAnchorPosition(nodeId, anchorSide) {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return null;
+        
+        const node = container.querySelector(`[data-node-id="${nodeId}"]`);
+        if (!node) return null;
+        
+        // Get the actual anchor element
+        const anchor = node.querySelector(`[data-anchor-side="${anchorSide}"]`);
+        if (!anchor) {
+            // Fallback: calculate from node position if anchor not found
+            const nodeRect = node.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            let anchorX, anchorY;
+            const nodeCenterX = nodeRect.left + nodeRect.width / 2;
+            const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+            
+            switch(anchorSide) {
+                case 'left':
+                    anchorX = nodeRect.left - containerRect.left;
+                    anchorY = nodeCenterY - containerRect.top;
+                    break;
+                case 'right':
+                    anchorX = nodeRect.right - containerRect.left;
+                    anchorY = nodeCenterY - containerRect.top;
+                    break;
+                case 'top':
+                    anchorX = nodeCenterX - containerRect.left;
+                    anchorY = nodeRect.top - containerRect.top;
+                    break;
+                case 'bottom':
+                    anchorX = nodeCenterX - containerRect.left;
+                    anchorY = nodeRect.bottom - containerRect.top;
+                    break;
+                default:
+                    anchorX = nodeCenterX - containerRect.left;
+                    anchorY = nodeCenterY - containerRect.top;
+            }
+            return { x: anchorX, y: anchorY };
+        }
+        
+        // Get bounding rects - these account for all transforms
+        const anchorRect = anchor.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        // Calculate anchor center position relative to container (which matches SVG viewBox)
+        const anchorX = anchorRect.left + anchorRect.width / 2 - containerRect.left;
+        const anchorY = anchorRect.top + anchorRect.height / 2 - containerRect.top;
+        
+        return { x: anchorX, y: anchorY };
+    }
+
+    /**
+     * Handle anchor click to start connection
+     */
+    function handleAnchorClick(e) {
+        e.stopPropagation();
+        if (!editMode) return;
+        
+        const anchor = e.currentTarget;
+        const nodeId = anchor.getAttribute('data-node-id');
+        const anchorSide = anchor.getAttribute('data-anchor-side');
+        
+        // If already connecting, treat this as the target anchor
+        if (isConnecting && connectionSource && nodeId !== connectionSource) {
+            completeConnection(nodeId, anchorSide);
+            return;
+        }
+        
+        startConnection(nodeId, anchorSide);
+    }
+
+    /**
+     * Show edit button on node hover (Edit Mode)
+     */
+    function showEditButton(node) {
+        if (!editMode) return;
+        
+        let editBtn = node.querySelector('.mindmap-edit-btn');
+        if (!editBtn) {
+            editBtn = document.createElement('button');
+            editBtn.className = 'mindmap-edit-btn';
+            editBtn.setAttribute('aria-label', 'Edit node content');
+            editBtn.innerHTML = '<i data-lucide="pencil" class="w-4 h-4"></i>';
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const nodeId = node.getAttribute('data-node-id');
+                editNodeContent(nodeId);
+            });
+            node.appendChild(editBtn);
+        }
+        editBtn.classList.add('mindmap-edit-btn--visible');
+    }
+
+    /**
+     * Hide edit button
+     */
+    function hideEditButton(node) {
+        const editBtn = node.querySelector('.mindmap-edit-btn');
+        if (editBtn) {
+            editBtn.classList.remove('mindmap-edit-btn--visible');
+        }
+    }
+
+    /**
+     * Start connection drawing from an anchor
+     */
+    function startConnection(nodeId, anchorSide) {
+        if (!editMode) return;
+        
+        isConnecting = true;
+        connectionSource = nodeId;
+        connectionSourceAnchor = anchorSide;
+        
+        // Change cursor
+        document.body.style.cursor = 'crosshair';
+        
+        // Create preview line
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const svg = container.querySelector('#mindmap-edges') || 
+                   container.querySelector('.mindmap-visualization');
+        if (!svg) return;
+        
+        connectionPreviewLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        connectionPreviewLine.setAttribute('class', 'mindmap-connection-preview');
+        connectionPreviewLine.setAttribute('fill', 'none');
+        connectionPreviewLine.setAttribute('stroke', '#f59e0b');
+        connectionPreviewLine.setAttribute('stroke-width', '2');
+        connectionPreviewLine.setAttribute('stroke-dasharray', '5,5');
+        svg.appendChild(connectionPreviewLine);
+        
+        // Add mouse move and click handlers
+        container.addEventListener('mousemove', drawConnectionPreview);
+        container.addEventListener('click', handleConnectionTargetClick);
+        container.addEventListener('mouseleave', cancelConnectionDrawing);
+        
+        // Add ESC key handler
+        document.addEventListener('keydown', handleConnectionKeyDown);
+    }
+
+    /**
+     * Draw connection preview line
+     */
+    function drawConnectionPreview(e) {
+        if (!isConnecting || !connectionSource) return;
+        
+        const container = document.getElementById('mindmap-display-container');
+        if (!container || !connectionPreviewLine) return;
+        
+        const containerRect = container.getBoundingClientRect();
+        
+        // Get source anchor position using helper function
+        const sourceAnchorPos = getAnchorPosition(connectionSource, connectionSourceAnchor);
+        if (!sourceAnchorPos) return;
+        
+        const sourceAnchorX = sourceAnchorPos.x;
+        const sourceAnchorY = sourceAnchorPos.y;
+        
+        // If hovering an anchor (not on the source node), snap to that anchor; otherwise follow the mouse
+        const hoveredAnchor = e.target.classList?.contains('mindmap-anchor') ? e.target : null;
+        const hoveredNodeId = hoveredAnchor?.getAttribute('data-node-id');
+        let targetX = e.clientX - containerRect.left;
+        let targetY = e.clientY - containerRect.top;
+        
+        if (hoveredAnchor && hoveredNodeId && hoveredNodeId !== connectionSource) {
+            const hoverAnchorSide = hoveredAnchor.getAttribute('data-anchor-side');
+            const hoverPos = getAnchorPosition(hoveredNodeId, hoverAnchorSide);
+            if (hoverPos) {
+                targetX = hoverPos.x;
+                targetY = hoverPos.y;
+            }
+        }
+        
+        // Calculate bezier curve control points
+        const side = targetX >= sourceAnchorX ? 1 : -1;
+        const dx = Math.max(60, Math.abs(targetX - sourceAnchorX) * 0.35);
+        
+        const pathData = `M ${sourceAnchorX} ${sourceAnchorY} ` +
+            `C ${sourceAnchorX + dx * side} ${sourceAnchorY}, ` +
+            `${targetX - dx * side} ${targetY}, ` +
+            `${targetX} ${targetY}`;
+        
+        connectionPreviewLine.setAttribute('d', pathData);
+        
+        // Highlight valid drop targets
+        const targetNode = e.target.closest('[data-node-id]');
+        if (targetNode && targetNode.getAttribute('data-node-id') !== connectionSource) {
+            targetNode.classList.add('mindmap-node--drop-target');
+        } else {
+            // Remove highlight from other nodes
+            const nodes = container.querySelectorAll('[data-node-id]');
+            nodes.forEach(node => {
+                if (node.getAttribute('data-node-id') !== connectionSource) {
+                    node.classList.remove('mindmap-node--drop-target');
+                }
+            });
+        }
+    }
+
+    /**
+     * Handle click on target node to complete connection
+     */
+    function handleConnectionTargetClick(e) {
+        if (!isConnecting) return;
+        
+        // If clicking directly on an anchor, use that anchor as the target
+        const targetAnchorEl = e.target.classList?.contains('mindmap-anchor') ? e.target : null;
+        const targetNode = targetAnchorEl ? targetAnchorEl.closest('[data-node-id]') : e.target.closest('[data-node-id]');
+        if (!targetNode) {
+            // Clicked outside, cancel
+            cancelConnectionDrawing();
+            return;
+        }
+        
+        const targetNodeId = targetNode.getAttribute('data-node-id');
+        if (targetNodeId === connectionSource) {
+            // Can't connect to self
+            cancelConnectionDrawing();
+            return;
+        }
+        
+        // Determine target anchor based on relative position from source anchor
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) {
+            cancelConnectionDrawing();
+            return;
+        }
+        
+        // Get source anchor position
+        const sourceAnchorPos = getAnchorPosition(connectionSource, connectionSourceAnchor);
+        if (!sourceAnchorPos) {
+            cancelConnectionDrawing();
+            return;
+        }
+        
+        // If an anchor was clicked, use that anchor side; otherwise choose closest anchor to the click
+        let targetAnchor = targetAnchorEl?.getAttribute('data-anchor-side');
+        if (!targetAnchor) {
+            const targetRect = targetNode.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            const clickX = e.clientX - containerRect.left;
+            const clickY = e.clientY - containerRect.top;
+            
+            // Choose anchor based on closest distance to click point
+            const anchorSides = ['left', 'right', 'top', 'bottom'];
+            let closestSide = 'left';
+            let closestDist = Infinity;
+            anchorSides.forEach(side => {
+                const pos = getAnchorPosition(targetNodeId, side);
+                if (!pos) return;
+                const dist = Math.hypot(pos.x - clickX, pos.y - clickY);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestSide = side;
+                }
+            });
+            targetAnchor = closestSide;
+        }
+        
+        completeConnection(targetNodeId, targetAnchor);
+    }
+
+    /**
+     * Complete connection drawing
+     */
+    function completeConnection(targetNodeId, targetAnchor) {
+        if (!isConnecting || !connectionSource) return;
+        
+        // Check for duplicate connection
+        const isDuplicate = manualConnections.some(conn => 
+            conn.source === connectionSource && 
+            conn.target === targetNodeId &&
+            conn.sourceAnchor === connectionSourceAnchor &&
+            conn.targetAnchor === targetAnchor
+        );
+        
+        if (!isDuplicate) {
+            // Create new connection
+            const connectionId = `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            manualConnections.push({
+                id: connectionId,
+                source: connectionSource,
+                sourceAnchor: connectionSourceAnchor,
+                target: targetNodeId,
+                targetAnchor: targetAnchor,
+                isManual: true
+            });
+            
+            // Re-render connections
+            const container = document.getElementById('mindmap-display-container');
+            if (container) {
+                const svg = container.querySelector('#mindmap-edges') || 
+                           container.querySelector('.mindmap-visualization');
+                if (svg) {
+                    // Remove preview and re-render all
+                    if (connectionPreviewLine && connectionPreviewLine.parentNode) {
+                        connectionPreviewLine.parentNode.removeChild(connectionPreviewLine);
+                    }
+                    updateConnectionRendering();
+                }
+            }
+        }
+        
+        // Clean up
+        cancelConnectionDrawing();
+    }
+
+    /**
+     * Handle keydown during connection drawing
+     */
+    function handleConnectionKeyDown(e) {
+        if (e.key === 'Escape' && isConnecting) {
+            cancelConnectionDrawing();
+        }
+    }
+
+    /**
+     * Delete a manual connection
+     */
+    function deleteConnection(connectionId) {
+        if (!editMode) return;
+        
+        // Remove from manual connections array
+        const index = manualConnections.findIndex(conn => conn.id === connectionId);
+        if (index !== -1) {
+            manualConnections.splice(index, 1);
+            
+            // Remove from DOM
+            const container = document.getElementById('mindmap-display-container');
+            if (container) {
+                const svg = container.querySelector('#mindmap-edges') || 
+                           container.querySelector('.mindmap-visualization');
+                if (svg) {
+                    const path = svg.querySelector(`[data-connection-id="${connectionId}"]`);
+                    if (path) {
+                        path.remove();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Enable content editing for nodes
+     */
+    function enableContentEditing() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const nodes = container.querySelectorAll('[data-node-id][data-editable="true"]');
+        nodes.forEach(node => {
+            // Add double-click handler
+            node.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const nodeId = node.getAttribute('data-node-id');
+                editNodeContent(nodeId);
+            });
+        });
+    }
+
+    /**
+     * Disable content editing
+     */
+    function disableContentEditing() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const nodes = container.querySelectorAll('[data-node-id]');
+        nodes.forEach(node => {
+            // Remove double-click handlers (they'll be re-added if needed)
+            const newNode = node.cloneNode(true);
+            node.parentNode.replaceChild(newNode, node);
+        });
+    }
+
+    /**
+     * Edit node content
+     */
+    function editNodeContent(nodeId) {
+        if (!editMode) return;
+        
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const node = container.querySelector(`[data-node-id="${nodeId}"]`);
+        if (!node) return;
+        
+        // Get original content
+        const originalContent = contentEdits.get(nodeId) || 
+                              (currentMindMap && currentMindMap.mind_map_data ? 
+                               (currentMindMap.mind_map_data.root.id === nodeId ? 
+                                currentMindMap.mind_map_data.root.label :
+                                (currentMindMap.mind_map_data.nodes || []).find(n => n.id === nodeId)?.label) : 
+                               node.textContent.trim());
+        
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = originalContent;
+        input.className = 'mindmap-node-editor';
+        input.style.position = 'absolute';
+        input.style.left = '0';
+        input.style.top = '0';
+        input.style.width = '100%';
+        input.style.height = '100%';
+        input.style.border = '2px solid #3b82f6';
+        input.style.borderRadius = 'inherit';
+        input.style.padding = 'inherit';
+        input.style.fontSize = 'inherit';
+        input.style.fontWeight = 'inherit';
+        input.style.textAlign = 'center';
+        input.style.background = 'white';
+        input.style.zIndex = '1000';
+        
+        // Replace node content with input
+        const originalText = node.textContent;
+        node.textContent = '';
+        node.appendChild(input);
+        input.focus();
+        input.select();
+        
+        // Handle save
+        const saveEdit = () => {
+            const newContent = input.value.trim();
+            if (newContent && newContent !== originalContent) {
+                contentEdits.set(nodeId, newContent);
+                node.textContent = newContent;
+                // Re-measure node size if needed
+                // Node will auto-resize based on content
+            } else {
+                node.textContent = originalText;
+            }
+            input.remove();
+        };
+        
+        // Handle cancel
+        const cancelEdit = () => {
+            node.textContent = originalText;
+            input.remove();
+        };
+        
+        input.addEventListener('blur', saveEdit);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveEdit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+            }
+        });
+    }
+
+    /**
+     * Save node content (called from edit handler)
+     */
+    function saveNodeContent(nodeId, newContent) {
+        contentEdits.set(nodeId, newContent);
+        
+        // Update node display
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const node = container.querySelector(`[data-node-id="${nodeId}"]`);
+        if (node) {
+            node.textContent = newContent;
+        }
+    }
+
+    /**
+     * Reset layout to original state
+     */
+    function handleResetLayout() {
+        if (!confirm('Reset layout to original positions? This will clear all custom positions, manual connections, and content edits.')) {
+            return;
+        }
+        
+        resetLayout();
+    }
+
+    /**
+     * Reset layout to original state
+     */
+    function resetLayout() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        // Clear custom positions
+        customPositions.clear();
+        
+        // Clear manual connections
+        manualConnections = [];
+        
+        // Clear content edits
+        contentEdits.clear();
+        
+        // Restore original positions
+        const nodes = container.querySelectorAll('[data-node-id]');
+        nodes.forEach(node => {
+            const nodeId = node.getAttribute('data-node-id');
+            const originalPos = originalPositions.get(nodeId);
+            
+            if (originalPos) {
+                node.style.left = `${originalPos.x}px`;
+                node.style.top = `${originalPos.y}px`;
+            }
+            
+            // Restore original content
+            if (currentMindMap && currentMindMap.mind_map_data) {
+                const root = currentMindMap.mind_map_data.root;
+                const nodesData = currentMindMap.mind_map_data.nodes || [];
+                let originalLabel = root.id === nodeId ? root.label : 
+                                  nodesData.find(n => n.id === nodeId)?.label ||
+                                  nodesData.flatMap(n => n.children || []).find(c => c.id === nodeId)?.label;
+                
+                if (originalLabel) {
+                    node.textContent = originalLabel;
+                }
+            }
+        });
+        
+        // Re-render connections (only original ones)
+        updateConnectionRendering();
+        
+        // Cancel any ongoing operations
+        cancelConnectionDrawing();
     }
 
     /**
@@ -819,10 +1959,12 @@
      */
     function drawConnection(svg, x1, y1, x2, y2) {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', x1);
-        line.setAttribute('y1', y1);
-        line.setAttribute('x2', x2);
-        line.setAttribute('y2', y2);
+        line.setAttribute('x1', x1.toString());
+        line.setAttribute('y1', y1.toString());
+        line.setAttribute('x2', x2.toString());
+        line.setAttribute('y2', y2.toString());
+        line.setAttribute('stroke', '#93c5fd');
+        line.setAttribute('stroke-width', '2');
         line.setAttribute('class', 'mindmap-connection');
         svg.appendChild(line);
     }
@@ -1132,6 +2274,408 @@
     function hideError() {
         const errorEl = document.getElementById('mindmap-error');
         if (errorEl) errorEl.classList.add('hidden');
+    }
+
+    /**
+     * Handle mode toggle
+     */
+    function handleModeToggle(mode) {
+        if (mode === 'view') {
+            toggleEditMode(false);
+        } else if (mode === 'edit') {
+            toggleEditMode(true);
+        }
+    }
+
+    /**
+     * Toggle Edit Mode on/off
+     */
+    function toggleEditMode(enabled) {
+        editMode = enabled;
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+
+        // Update UI buttons
+        const viewModeBtn = document.getElementById('mindmap-view-mode-btn');
+        const editModeBtn = document.getElementById('mindmap-edit-mode-btn');
+        const resetLayoutBtn = document.getElementById('mindmap-reset-layout-btn');
+        
+        if (viewModeBtn && editModeBtn) {
+            if (enabled) {
+                viewModeBtn.classList.remove('mindmap-mode-btn--active');
+                editModeBtn.classList.add('mindmap-mode-btn--active');
+                container.classList.add('mindmap-edit-mode');
+                if (resetLayoutBtn) resetLayoutBtn.style.display = 'block';
+            } else {
+                viewModeBtn.classList.add('mindmap-mode-btn--active');
+                editModeBtn.classList.remove('mindmap-mode-btn--active');
+                container.classList.remove('mindmap-edit-mode');
+                if (resetLayoutBtn) resetLayoutBtn.style.display = 'none';
+                // Cancel any ongoing connection drawing
+                cancelConnectionDrawing();
+            }
+        }
+
+        // Enable/disable dragging
+        if (enabled) {
+            enableDragging();
+            enableContentEditing();
+        } else {
+            disableDragging();
+            disableContentEditing();
+            hideAllAnchors();
+        }
+
+        // Re-render connections to show/hide edit controls
+        if (currentMindMap && currentMindMap.mind_map_data) {
+            updateConnectionRendering();
+        }
+    }
+
+    /**
+     * Cancel connection drawing
+     */
+    function cancelConnectionDrawing() {
+        isConnecting = false;
+        connectionSource = null;
+        connectionSourceAnchor = null;
+        
+        if (connectionPreviewLine && connectionPreviewLine.parentNode) {
+            connectionPreviewLine.parentNode.removeChild(connectionPreviewLine);
+            connectionPreviewLine = null;
+        }
+        
+        document.body.style.cursor = '';
+        
+        // Remove event listeners
+        const container = document.getElementById('mindmap-display-container');
+        if (container) {
+            container.removeEventListener('mousemove', drawConnectionPreview);
+            container.removeEventListener('click', handleConnectionTargetClick);
+            container.removeEventListener('mouseleave', cancelConnectionDrawing);
+        }
+        document.removeEventListener('keydown', handleConnectionKeyDown);
+        
+        // Remove drop target highlights
+        const nodes = container ? container.querySelectorAll('[data-node-id]') : [];
+        nodes.forEach(node => node.classList.remove('mindmap-node--drop-target'));
+    }
+
+    /**
+     * Hide all connection anchors
+     */
+    function hideAllAnchors() {
+        const anchors = document.querySelectorAll('.mindmap-anchor');
+        anchors.forEach(anchor => anchor.classList.remove('mindmap-anchor--visible'));
+    }
+
+    /**
+     * Ensure no node overlaps (prevent piling up)
+     */
+    function ensureNoOverlaps(nodePositions, nodeSizes, nodeElements, containerWidth, containerHeight, padding) {
+        const minSpacing = 50; // Minimum space between node edges (increased to prevent piling up)
+        const maxIterations = 30; // More iterations to ensure all overlaps are resolved
+        
+        for (let iteration = 0; iteration < maxIterations; iteration++) {
+            let hasOverlaps = false;
+            const nodeIds = Array.from(nodePositions.keys());
+            
+            for (let i = 0; i < nodeIds.length; i++) {
+                for (let j = i + 1; j < nodeIds.length; j++) {
+                    const nodeId1 = nodeIds[i];
+                    const nodeId2 = nodeIds[j];
+                    const pos1 = nodePositions.get(nodeId1);
+                    const pos2 = nodePositions.get(nodeId2);
+                    const size1 = nodeSizes.get(nodeId1) || { width: 120, height: 40 };
+                    const size2 = nodeSizes.get(nodeId2) || { width: 120, height: 40 };
+                    
+                    if (!pos1 || !pos2) continue;
+                    
+                    // Calculate distance between node centers
+                    const dx = Math.abs(pos1.x - pos2.x);
+                    const dy = Math.abs(pos1.y - pos2.y);
+                    
+                    // Calculate minimum required distance (half widths + half heights + spacing)
+                    const minDx = (size1.width / 2) + (size2.width / 2) + minSpacing;
+                    const minDy = (size1.height / 2) + (size2.height / 2) + minSpacing;
+                    
+                    // Check if nodes overlap
+                    if (dx < minDx && dy < minDy) {
+                        hasOverlaps = true;
+                        
+                        // Calculate overlap amounts
+                        const overlapX = minDx - dx;
+                        const overlapY = minDy - dy;
+                        
+                        // Determine push direction
+                        const dirX = pos1.x < pos2.x ? -1 : 1;
+                        const dirY = pos1.y < pos2.y ? -1 : 1;
+                        
+                        // Push nodes apart
+                        let newX1 = pos1.x + (dirX * overlapX / 2);
+                        let newY1 = pos1.y + (dirY * overlapY / 2);
+                        let newX2 = pos2.x - (dirX * overlapX / 2);
+                        let newY2 = pos2.y - (dirY * overlapY / 2);
+                        
+                        // Ensure nodes stay within bounds
+                        newX1 = Math.max(padding + size1.width / 2, Math.min(newX1, containerWidth - padding - size1.width / 2));
+                        newY1 = Math.max(padding + size1.height / 2, Math.min(newY1, containerHeight - padding - size1.height / 2));
+                        newX2 = Math.max(padding + size2.width / 2, Math.min(newX2, containerWidth - padding - size2.width / 2));
+                        newY2 = Math.max(padding + size2.height / 2, Math.min(newY2, containerHeight - padding - size2.height / 2));
+                        
+                        // Update positions
+                        nodePositions.set(nodeId1, { x: newX1, y: newY1 });
+                        nodePositions.set(nodeId2, { x: newX2, y: newY2 });
+                        
+                        // Update DOM
+                        const el1 = nodeElements.get(nodeId1);
+                        const el2 = nodeElements.get(nodeId2);
+                        if (el1) {
+                            el1.style.left = `${newX1}px`;
+                            el1.style.top = `${newY1}px`;
+                        }
+                        if (el2) {
+                            el2.style.left = `${newX2}px`;
+                            el2.style.top = `${newY2}px`;
+                        }
+                    }
+                }
+            }
+            
+            if (!hasOverlaps) break;
+        }
+    }
+
+    /**
+     * Render all connections (manual only - no original connections rendered)
+     */
+    function renderAllConnections(svg, mindMapData) {
+        if (!svg) return;
+        
+        const container = svg.closest('#mindmap-display-container') || 
+                         document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        // Don't render original connections - only manual ones
+        // Original connections are stored for reference but not displayed
+        
+        // Render manual connections only
+        manualConnections.forEach(conn => {
+            const sourceNode = container.querySelector(`[data-node-id="${conn.source}"]`);
+            const targetNode = container.querySelector(`[data-node-id="${conn.target}"]`);
+            
+            if (sourceNode && targetNode) {
+                // Get anchor positions using helper function
+                const sourceAnchorPos = getAnchorPosition(conn.source, conn.sourceAnchor);
+                const targetAnchorPos = getAnchorPosition(conn.target, conn.targetAnchor);
+                
+                if (!sourceAnchorPos || !targetAnchorPos) return;
+                
+                const sourceAnchorX = sourceAnchorPos.x;
+                const sourceAnchorY = sourceAnchorPos.y;
+                const targetAnchorX = targetAnchorPos.x;
+                const targetAnchorY = targetAnchorPos.y;
+                
+                const side = targetAnchorX >= sourceAnchorX ? 1 : -1;
+                const dx = Math.max(60, Math.abs(targetAnchorX - sourceAnchorX) * 0.35);
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d',
+                    `M ${sourceAnchorX} ${sourceAnchorY} ` +
+                    `C ${sourceAnchorX + dx * side} ${sourceAnchorY}, ` +
+                    `${targetAnchorX - dx * side} ${targetAnchorY}, ` +
+                    `${targetAnchorX} ${targetAnchorY}`
+                );
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#f59e0b');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('stroke-dasharray', '5,5');
+                path.setAttribute('class', 'mindmap-connection mindmap-connection--manual');
+                path.setAttribute('data-connection-id', conn.id);
+                
+                // Add delete handler for manual connections
+                if (editMode) {
+                    path.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        deleteConnection(conn.id);
+                    });
+                    path.addEventListener('mouseenter', () => {
+                        if (editMode) {
+                            path.style.strokeWidth = '3';
+                            path.style.opacity = '0.8';
+                        }
+                    });
+                    path.addEventListener('mouseleave', () => {
+                        path.style.strokeWidth = '2';
+                        path.style.opacity = '1';
+                    });
+                    path.style.cursor = 'pointer';
+                }
+                
+                svg.appendChild(path);
+            }
+        });
+    }
+
+    /**
+     * Enable dragging for nodes in Edit Mode
+     */
+    function enableDragging() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const nodes = container.querySelectorAll('[data-node-id]');
+        nodes.forEach(node => {
+            node.classList.add('mindmap-node--draggable');
+            node.style.cursor = 'move';
+            
+            // Remove existing handlers to prevent duplicates
+            node.removeEventListener('mousedown', handleNodeDragStart);
+            node.addEventListener('mousedown', handleNodeDragStart);
+        });
+    }
+
+    /**
+     * Disable dragging for nodes
+     */
+    function disableDragging() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const nodes = container.querySelectorAll('[data-node-id]');
+        nodes.forEach(node => {
+            node.classList.remove('mindmap-node--draggable', 'mindmap-node--dragging');
+            node.style.cursor = '';
+            node.removeEventListener('mousedown', handleNodeDragStart);
+        });
+        
+        // Clean up any ongoing drag
+        if (draggedNode) {
+            document.removeEventListener('mousemove', handleNodeDrag);
+            document.removeEventListener('mouseup', handleNodeDragEnd);
+            draggedNode = null;
+        }
+    }
+
+    /**
+     * Handle node drag start
+     */
+    function handleNodeDragStart(e) {
+        if (!editMode) return;
+        if (isConnecting) return; // Don't drag while connecting
+        
+        const node = e.currentTarget;
+        const nodeId = node.getAttribute('data-node-id');
+        if (!nodeId) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        draggedNode = node;
+        node.classList.add('mindmap-node--dragging');
+        
+        const rect = node.getBoundingClientRect();
+        const container = document.getElementById('mindmap-display-container');
+        const containerRect = container.getBoundingClientRect();
+        
+        // Calculate offset from mouse to node center
+        dragOffset.x = e.clientX - (rect.left + rect.width / 2);
+        dragOffset.y = e.clientY - (rect.top + rect.height / 2);
+        
+        document.addEventListener('mousemove', handleNodeDrag);
+        document.addEventListener('mouseup', handleNodeDragEnd);
+    }
+
+    /**
+     * Handle node drag
+     */
+    function handleNodeDrag(e) {
+        if (!draggedNode) return;
+        
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const containerRect = container.getBoundingClientRect();
+        const nodeId = draggedNode.getAttribute('data-node-id');
+        
+        // Calculate new position
+        let newX = e.clientX - containerRect.left - dragOffset.x;
+        let newY = e.clientY - containerRect.top - dragOffset.y;
+        
+        // Get node size for boundary checking
+        const nodeRect = draggedNode.getBoundingClientRect();
+        const nodeWidth = nodeRect.width;
+        const nodeHeight = nodeRect.height;
+        const padding = 20;
+        
+        // Constrain to container bounds
+        newX = Math.max(padding, Math.min(newX, containerRect.width - nodeWidth - padding));
+        newY = Math.max(padding, Math.min(newY, containerRect.height - nodeHeight - padding));
+        
+        // Update position
+        draggedNode.style.left = `${newX}px`;
+        draggedNode.style.top = `${newY}px`;
+        
+        // Store in custom positions
+        customPositions.set(nodeId, { x: newX, y: newY });
+        
+        // Update connections
+        updateConnectionsForNode(nodeId);
+    }
+
+    /**
+     * Handle node drag end
+     */
+    function handleNodeDragEnd(e) {
+        if (!draggedNode) return;
+        
+        draggedNode.classList.remove('mindmap-node--dragging');
+        draggedNode = null;
+        
+        document.removeEventListener('mousemove', handleNodeDrag);
+        document.removeEventListener('mouseup', handleNodeDragEnd);
+    }
+
+    /**
+     * Update connections when a node moves
+     */
+    function updateConnectionsForNode(nodeId) {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const svg = container.querySelector('#mindmap-edges') || 
+                   container.querySelector('.mindmap-visualization');
+        if (!svg) return;
+        
+        // Remove and re-render all connections
+        const paths = svg.querySelectorAll('.mindmap-connection');
+        paths.forEach(path => path.remove());
+        
+        if (currentMindMap && currentMindMap.mind_map_data) {
+            renderAllConnections(svg, currentMindMap.mind_map_data);
+        }
+    }
+
+    /**
+     * Update connection rendering (for mode changes)
+     */
+    function updateConnectionRendering() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        const svg = container.querySelector('#mindmap-edges') || 
+                   container.querySelector('.mindmap-visualization');
+        if (!svg) return;
+
+        // Remove all connections and re-render
+        const paths = svg.querySelectorAll('.mindmap-connection');
+        paths.forEach(path => path.remove());
+
+        // Re-render connections
+        if (currentMindMap && currentMindMap.mind_map_data) {
+            renderAllConnections(svg, currentMindMap.mind_map_data);
+        }
     }
 
     // Initialize on DOM ready
