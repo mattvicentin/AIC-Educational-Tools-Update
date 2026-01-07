@@ -657,6 +657,30 @@
             const nodePositions = new Map();
             const nodeElements = new Map();
             const elkNodesById = new Map(); // Store ELK node objects for edge drawing
+
+            function collectLayoutMetrics(layout, mirrorWidth = null) {
+                let minCenterX = Infinity;
+                let maxCenterX = -Infinity;
+                let maxHalfWidth = 0;
+                function visit(node) {
+                    if (node.x !== undefined && node.width !== undefined) {
+                        const centerX = node.x + node.width / 2;
+                        const effectiveCenterX = mirrorWidth !== null ? (mirrorWidth - centerX) : centerX;
+                        minCenterX = Math.min(minCenterX, effectiveCenterX);
+                        maxCenterX = Math.max(maxCenterX, effectiveCenterX);
+                        maxHalfWidth = Math.max(maxHalfWidth, node.width / 2);
+                    }
+                    if (node.children) {
+                        node.children.forEach(child => visit(child));
+                    }
+                }
+                visit(layout);
+                if (!isFinite(minCenterX) || !isFinite(maxCenterX)) {
+                    minCenterX = 0;
+                    maxCenterX = 1;
+                }
+                return { minCenterX, maxCenterX, maxHalfWidth };
+            }
             
             // Set root position
             nodePositions.set('root', { x: rootX, y: rootY });
@@ -669,10 +693,16 @@
                 const rightBounds = calculateBounds(rightLayouted);
                 const rightStartX = rootX + rootGap;
                 const rightOffsetY = rootY - rightBounds.height / 2 - rightBounds.y;
+                const rightAvailable = containerWidth - padding - rightStartX;
+                const rightMetrics = collectLayoutMetrics(rightLayouted);
+                const rightSpan = Math.max(1, rightMetrics.maxCenterX - rightMetrics.minCenterX);
+                const rightAvailableSpan = Math.max(1, rightAvailable - rightMetrics.maxHalfWidth);
+                const rightScale = rightAvailableSpan / rightSpan;
                 
                 function positionRightNodes(node) {
                     if (node.x !== undefined && node.y !== undefined) {
-                        const finalX = rightStartX + node.x + node.width / 2;
+                        const centerX = node.x + node.width / 2;
+                        const finalX = rightStartX + (centerX - rightMetrics.minCenterX) * rightScale;
                         const finalY = rightOffsetY + node.y + node.height / 2;
                         nodePositions.set(node.id, { x: finalX, y: finalY });
                         elkNodesById.set(node.id, node);
@@ -709,14 +739,20 @@
             if (leftLayouted && leftLayouted.children && leftLayouted.children.length > 0) {
                 const leftBounds = calculateBounds(leftLayouted);
                 const leftWidth = leftBounds.width;
-                const leftStartX = rootX - rootGap - leftWidth;
+                const leftStartX = padding;
                 const leftOffsetY = rootY - leftBounds.height / 2 - leftBounds.y;
+                const leftAvailable = rootX - rootGap - padding;
+                const leftMetrics = collectLayoutMetrics(leftLayouted, leftWidth);
+                const leftSpan = Math.max(1, leftMetrics.maxCenterX - leftMetrics.minCenterX);
+                const leftAvailableSpan = Math.max(1, leftAvailable - leftMetrics.maxHalfWidth);
+                const leftScale = leftAvailableSpan / leftSpan;
                 
                 function positionLeftNodes(node) {
                     if (node.x !== undefined && node.y !== undefined) {
                         // Mirror horizontally
-                        const mirroredX = leftWidth - (node.x + node.width);
-                        const finalX = leftStartX + mirroredX + node.width / 2;
+                        const centerX = node.x + node.width / 2;
+                        const mirroredCenterX = leftWidth - centerX;
+                        const finalX = leftStartX + (mirroredCenterX - leftMetrics.minCenterX) * leftScale;
                         const finalY = leftOffsetY + node.y + node.height / 2;
                         nodePositions.set(node.id, { x: finalX, y: finalY });
                         elkNodesById.set(node.id, node);
@@ -780,8 +816,8 @@
                     }
                 }
                 
-                // Apply same transform to canvas
-                canvas.style.transform = `translate(${offset.dx}px, ${offset.dy}px)`;
+                // Canvas stays untransformed; positions already include the offset
+                canvas.style.transform = '';
             }
             
             // Clear custom positions and manual connections on new render
@@ -792,6 +828,9 @@
             
             // Apply collision detection to prevent piling up BEFORE storing original positions
             ensureNoOverlaps(nodePositions, nodeSizes, nodeElements, containerWidth, containerHeight, padding);
+
+            // Recenter/fit the entire layout to use full space and stay inside bounds
+            centerMindMapByBoundingBox(nodePositions, containerWidth, containerHeight, padding);
             
             // Store original positions (after ensuring no overlaps)
             originalPositions.clear();
@@ -2475,6 +2514,7 @@
             if (!hasOverlaps) break;
         }
     }
+
 
     /**
      * Render all connections (manual only - no original connections rendered)
