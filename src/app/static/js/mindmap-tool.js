@@ -29,6 +29,24 @@
     let connectionPreviewLine = null; // Preview line element during connection drawing
     let draggedNode = null; // Currently dragged node
     let dragOffset = { x: 0, y: 0 }; // Offset for dragging
+    let layoutTransform = { scale: 1, tx: 0, ty: 0 }; // World transform for layout fit
+    let layoutPadding = 20; // Layout padding inside viewport
+
+    function screenToWorld(x, y) {
+        const scale = layoutTransform.scale || 1;
+        return {
+            x: (x - layoutTransform.tx) / scale,
+            y: (y - layoutTransform.ty) / scale
+        };
+    }
+
+    function worldToScreen(x, y) {
+        const scale = layoutTransform.scale || 1;
+        return {
+            x: (x * scale) + layoutTransform.tx,
+            y: (y * scale) + layoutTransform.ty
+        };
+    }
 
     /**
      * Initialize mind map tool
@@ -452,20 +470,11 @@
     }
 
     /**
-     * Render mind map visualization using ELK.js layout library
+     * Render mind map visualization using deterministic mind map layout
      */
     async function renderMindMap(mindMapData) {
         const container = document.getElementById('mindmap-display-container');
         if (!container) return;
-
-        // Check if ELK is available
-        if (typeof ELK === 'undefined') {
-            console.error('ELK.js library not loaded. Available:', Object.keys(window).filter(k => k.toLowerCase().includes('elk')));
-            showError('Layout library failed to load. Please refresh the page.');
-            return;
-        }
-        
-        console.log('ELK.js loaded, starting layout...');
 
         container.innerHTML = '';
         
@@ -473,33 +482,48 @@
         if (!root) return;
 
         // Get container dimensions
-        const containerRect = container.getBoundingClientRect();
         const containerWidth = container.offsetWidth || 800;
         const containerHeight = container.offsetHeight || 500;
-        // Use container CSS padding as boundary, with a small minimum cushion
         const computedStyle = getComputedStyle(container);
         const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
         const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
         const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
         const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
         const padding = Math.max(paddingLeft, paddingRight, paddingTop, paddingBottom, 20);
-        const availableWidth = containerWidth - (padding * 2);
-        const availableHeight = containerHeight - (padding * 2);
+        layoutPadding = padding;
         
-        // Create SVG for connections
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', 'mindmap-visualization');
-        svg.style.position = 'absolute';
-        svg.style.top = '0';
-        svg.style.left = '0';
-        svg.style.width = '100%';
-        svg.style.height = '100%';
-        svg.style.pointerEvents = 'none';
-        svg.style.zIndex = '1';
-        svg.setAttribute('width', containerWidth.toString());
-        svg.setAttribute('height', containerHeight.toString());
-        svg.setAttribute('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
-        container.appendChild(svg);
+        // Build viewport/world layers (single transform)
+        const viewport = document.createElement('div');
+        viewport.id = 'mindmap-viewport';
+        viewport.style.position = 'relative';
+        viewport.style.width = '100%';
+        viewport.style.height = '100%';
+        viewport.style.overflow = 'hidden';
+        container.appendChild(viewport);
+
+        const world = document.createElement('div');
+        world.id = 'mindmap-world';
+        world.style.position = 'absolute';
+        world.style.left = '0';
+        world.style.top = '0';
+        world.style.transformOrigin = '0 0';
+        viewport.appendChild(world);
+
+        const worldSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        worldSvg.id = 'mindmap-edges';
+        worldSvg.style.position = 'absolute';
+        worldSvg.style.left = '0';
+        worldSvg.style.top = '0';
+        worldSvg.style.pointerEvents = 'none';
+        worldSvg.style.overflow = 'visible';
+        world.appendChild(worldSvg);
+
+        const nodesContainer = document.createElement('div');
+        nodesContainer.id = 'mindmap-nodes';
+        nodesContainer.style.position = 'absolute';
+        nodesContainer.style.left = '0';
+        nodesContainer.style.top = '0';
+        world.appendChild(nodesContainer);
 
         // Measure all nodes first
         const tempContainer = document.createElement('div');
@@ -528,7 +552,7 @@
 
         // Measure all other nodes
         const nodes = mindMapData.nodes || [];
-        const allNodes = [root, ...nodes];
+        const branchNodes = nodes.length > 0 ? nodes : (root.children || []);
         
         function measureNode(node, type) {
             if (nodeSizes.has(node.id)) return;
@@ -542,7 +566,6 @@
             nodeTypes.set(node.id, type);
             tempContainer.removeChild(nodeEl);
             
-            // Measure children recursively
             if (node.children) {
                 node.children.forEach(child => {
                     measureNode(child, 'sub');
@@ -550,338 +573,232 @@
             }
         }
         
-        nodes.forEach(node => measureNode(node, 'branch'));
+        branchNodes.forEach(node => measureNode(node, 'branch'));
         container.removeChild(tempContainer);
 
-        // Split into left and right sides for two-sided mind map
-        const primaryBranches = nodes.filter(n => n.parent === 'root');
-        const leftBranches = [];
-        const rightBranches = [];
-        primaryBranches.forEach((node, index) => {
-            if (index % 2 === 0) {
-                leftBranches.push(node);
-            } else {
-                rightBranches.push(node);
-            }
-        });
-        
-        // Configure ELK layout options - use layered algorithm for tree structure
-        let elkInstance;
-        try {
-            elkInstance = new ELK({
-                defaultLayoutOptions: {
-                    'elk.algorithm': 'layered',
-                    'elk.spacing.nodeNode': '80', // Increased spacing to prevent overlaps
-                    'elk.spacing.edgeNode': '50',
-                    'elk.layered.spacing.nodeNodeBetweenLayers': '150', // Increased layer spacing
-                    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLE',
-                    'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-                }
-            });
-            console.log('ELK instance created successfully');
-        } catch (elkError) {
-            console.error('Failed to create ELK instance:', elkError);
-            throw new Error('ELK initialization failed: ' + elkError.message);
+        // Determine top-level branches
+        let primaryBranches = nodes.filter(n => n.parent === 'root');
+        if (primaryBranches.length === 0) {
+            primaryBranches = nodes.length > 0 ? nodes : (root.children || []);
         }
 
-        try {
-            console.log('Creating two-sided layout with ELK...');
-            
-            // Create canvas container for unified transform space
-            const canvas = document.createElement('div');
-            canvas.id = 'mindmap-canvas';
-            canvas.style.position = 'absolute';
-            canvas.style.left = '0';
-            canvas.style.top = '0';
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            canvas.style.transformOrigin = '0 0';
-            container.appendChild(canvas);
-            
-            // Create SVG inside canvas
-            const canvasSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            canvasSvg.id = 'mindmap-edges';
-            canvasSvg.style.position = 'absolute';
-            canvasSvg.style.left = '0';
-            canvasSvg.style.top = '0';
-            canvasSvg.style.width = '100%';
-            canvasSvg.style.height = '100%';
-            canvasSvg.style.pointerEvents = 'none';
-            canvasSvg.setAttribute('width', containerWidth.toString());
-            canvasSvg.setAttribute('height', containerHeight.toString());
-            canvas.appendChild(canvasSvg);
-            
-            // Create nodes container inside canvas
-            const nodesContainer = document.createElement('div');
-            nodesContainer.id = 'mindmap-nodes';
-            nodesContainer.style.position = 'absolute';
-            nodesContainer.style.left = '0';
-            nodesContainer.style.top = '0';
-            nodesContainer.style.width = '100%';
-            nodesContainer.style.height = '100%';
-            canvas.appendChild(nodesContainer);
-            
-            // Layout right side
-            let rightLayouted = null;
-            if (rightBranches.length > 0) {
-                const rightGraph = convertToElkGraphSide(mindMapData, nodeSizes, rightBranches, 'RIGHT');
-                console.log('Right graph:', rightGraph);
-                rightLayouted = await elkInstance.layout(rightGraph);
-                console.log('Right layouted:', rightLayouted);
-            }
-            
-            // Layout left side (use RIGHT then mirror)
-            let leftLayouted = null;
-            if (leftBranches.length > 0) {
-                const leftGraph = convertToElkGraphSide(mindMapData, nodeSizes, leftBranches, 'RIGHT');
-                console.log('Left graph:', leftGraph);
-                leftLayouted = await elkInstance.layout(leftGraph);
-                console.log('Left layouted:', leftLayouted);
-            }
-            
-            // Flatten ELK output recursively
-            function flattenElk(layout, map = new Map()) {
-                if (layout.id) map.set(layout.id, layout);
-                (layout.children || []).forEach(ch => flattenElk(ch, map));
-                return map;
-            }
-            
-            const rightNodesById = rightLayouted ? flattenElk(rightLayouted) : new Map();
-            const leftNodesById = leftLayouted ? flattenElk(leftLayouted) : new Map();
-            
-            // Calculate positions with root anchoring
-            const rootX = containerWidth / 2;
-            const rootY = containerHeight / 2;
-            const rootGap = 200; // Space between root and branches
-            
-            const nodePositions = new Map();
-            const nodeElements = new Map();
-            const elkNodesById = new Map(); // Store ELK node objects for edge drawing
+        // Compute spacing based on node sizes
+        let maxWidth = 120;
+        let maxHeight = 40;
+        nodeSizes.forEach(size => {
+            maxWidth = Math.max(maxWidth, size.width);
+            maxHeight = Math.max(maxHeight, size.height);
+        });
+        const levelGap = Math.max(180, maxWidth * 1.1);
+        const rootGap = Math.max(levelGap, maxWidth * 1.4);
+        const verticalGap = Math.max(40, maxHeight * 0.6);
+        const topLevelGap = Math.max(verticalGap * 1.2, 50);
 
-            function collectLayoutMetrics(layout, mirrorWidth = null) {
-                let minCenterX = Infinity;
-                let maxCenterX = -Infinity;
-                let maxHalfWidth = 0;
-                function visit(node) {
-                    if (node.x !== undefined && node.width !== undefined) {
-                        const centerX = node.x + node.width / 2;
-                        const effectiveCenterX = mirrorWidth !== null ? (mirrorWidth - centerX) : centerX;
-                        minCenterX = Math.min(minCenterX, effectiveCenterX);
-                        maxCenterX = Math.max(maxCenterX, effectiveCenterX);
-                        maxHalfWidth = Math.max(maxHalfWidth, node.width / 2);
-                    }
-                    if (node.children) {
-                        node.children.forEach(child => visit(child));
-                    }
-                }
-                visit(layout);
-                if (!isFinite(minCenterX) || !isFinite(maxCenterX)) {
-                    minCenterX = 0;
-                    maxCenterX = 1;
-                }
-                return { minCenterX, maxCenterX, maxHalfWidth };
+        const subtreeHeights = new Map();
+        function computeSubtreeHeight(node) {
+            if (subtreeHeights.has(node.id)) return subtreeHeights.get(node.id);
+            const size = nodeSizes.get(node.id) || { width: 120, height: 40 };
+            const children = node.children || [];
+            if (children.length === 0) {
+                subtreeHeights.set(node.id, size.height);
+                return size.height;
             }
-            
-            // Set root position
-            nodePositions.set('root', { x: rootX, y: rootY });
-            const rootEl = createNode(root, 'root', rootX, rootY);
-            nodesContainer.appendChild(rootEl);
-            nodeElements.set('root', rootEl);
-            
-            // Position right side
-            if (rightLayouted && rightLayouted.children && rightLayouted.children.length > 0) {
-                const rightBounds = calculateBounds(rightLayouted);
-                const rightStartX = rootX + rootGap;
-                const rightOffsetY = rootY - rightBounds.height / 2 - rightBounds.y;
-                const rightAvailable = containerWidth - padding - rightStartX;
-                const rightMetrics = collectLayoutMetrics(rightLayouted);
-                const rightSpan = Math.max(1, rightMetrics.maxCenterX - rightMetrics.minCenterX);
-                const rightAvailableSpan = Math.max(1, rightAvailable - rightMetrics.maxHalfWidth);
-                const rightScale = rightAvailableSpan / rightSpan;
-                
-                function positionRightNodes(node) {
-                    if (node.x !== undefined && node.y !== undefined) {
-                        const centerX = node.x + node.width / 2;
-                        const finalX = rightStartX + (centerX - rightMetrics.minCenterX) * rightScale;
-                        const finalY = rightOffsetY + node.y + node.height / 2;
-                        nodePositions.set(node.id, { x: finalX, y: finalY });
-                        elkNodesById.set(node.id, node);
+            let totalChildren = 0;
+            children.forEach(child => {
+                totalChildren += computeSubtreeHeight(child);
+            });
+            totalChildren += verticalGap * (children.length - 1);
+            const total = Math.max(size.height, totalChildren);
+            subtreeHeights.set(node.id, total);
+            return total;
+        }
+
+        // Split branches to balance left/right
+        const weightedBranches = primaryBranches.map(node => ({
+            node,
+            height: computeSubtreeHeight(node)
+        })).sort((a, b) => b.height - a.height);
+
+        const leftBranches = [];
+        const rightBranches = [];
+        let leftTotal = 0;
+        let rightTotal = 0;
+        weightedBranches.forEach(item => {
+            if (leftTotal <= rightTotal) {
+                leftBranches.push(item);
+                leftTotal += item.height;
+            } else {
+                rightBranches.push(item);
+                rightTotal += item.height;
+            }
+        });
+
+        const nodePositions = new Map();
+        const nodeElements = new Map();
+
+        // Root stays at (0,0) in graph space
+        nodePositions.set('root', { x: 0, y: 0 });
+        const rootEl = createNode(root, 'root', 0, 0);
+        nodesContainer.appendChild(rootEl);
+        nodeElements.set('root', rootEl);
+
+        function layoutSubtree(node, side, depth, centerY) {
+            const x = side * (rootGap + (depth - 1) * levelGap);
+            nodePositions.set(node.id, { x, y: centerY });
+
+            const children = node.children || [];
+            if (children.length === 0) return;
+
+            let totalHeight = 0;
+            children.forEach(child => {
+                totalHeight += computeSubtreeHeight(child);
+            });
+            totalHeight += verticalGap * (children.length - 1);
+
+            let cursorY = centerY - (totalHeight / 2);
+            children.forEach(child => {
+                const childHeight = computeSubtreeHeight(child);
+                const childCenterY = cursorY + (childHeight / 2);
+                layoutSubtree(child, side, depth + 1, childCenterY);
+                cursorY += childHeight + verticalGap;
+            });
+        }
+
+        function layoutSide(branches, side) {
+            if (branches.length === 0) return;
+            let totalHeight = 0;
+            branches.forEach(item => {
+                totalHeight += item.height;
+            });
+            totalHeight += topLevelGap * (branches.length - 1);
+
+            let cursorY = -totalHeight / 2;
+            branches.forEach(item => {
+                const centerY = cursorY + (item.height / 2);
+                layoutSubtree(item.node, side, 1, centerY);
+                cursorY += item.height + topLevelGap;
+            });
+        }
+
+        layoutSide(leftBranches, -1);
+        layoutSide(rightBranches, 1);
+
+        function renderTree(node, depth) {
+            const pos = nodePositions.get(node.id);
+            if (!pos) return;
+            const type = depth === 1 ? 'branch' : 'sub';
+            const nodeEl = createNode(node, type, pos.x, pos.y);
+            nodesContainer.appendChild(nodeEl);
+            nodeElements.set(node.id, nodeEl);
+            if (node.children) {
+                node.children.forEach(child => renderTree(child, depth + 1));
+            }
+        }
+
+        leftBranches.forEach(item => renderTree(item.node, 1));
+        rightBranches.forEach(item => renderTree(item.node, 1));
+
+        // Reset edit data on new render
+        customPositions.clear();
+        manualConnections = [];
+        contentEdits.clear();
+        originalConnections = [];
+
+        // Store original positions
+        originalPositions.clear();
+        for (const [nodeId, pos] of nodePositions.entries()) {
+            originalPositions.set(nodeId, { x: pos.x, y: pos.y });
+        }
+
+        // Store original connections data structure (for reference, but don't render lines)
+        function storeConnectionData(nodeData, parentId = 'root') {
+            if (nodeData.children) {
+                nodeData.children.forEach(child => {
+                    const parentPos = nodePositions.get(parentId);
+                    const childPos = nodePositions.get(child.id);
+                    
+                    if (parentPos && childPos) {
+                        const side = childPos.x >= parentPos.x ? 1 : -1;
+                        originalConnections.push({
+                            id: `orig-${parentId}-${child.id}`,
+                            source: parentId,
+                            sourceAnchor: side === 1 ? 'right' : 'left',
+                            target: child.id,
+                            targetAnchor: side === 1 ? 'left' : 'right',
+                            isManual: false
+                        });
                     }
-                    if (node.children) {
-                        node.children.forEach(child => positionRightNodes(child));
-                    }
-                }
-                
-                function renderRightNodes(node) {
-                    const pos = nodePositions.get(node.id);
-                    if (pos && node.id !== 'root') {
-                        const nodeData = nodes.find(n => n.id === node.id) ||
-                                       nodes.flatMap(n => n.children || []).find(c => c.id === node.id);
-                        if (nodeData) {
-                            const type = nodeTypes.get(node.id) || 'branch';
-                            const nodeEl = createNode(nodeData, type, pos.x, pos.y);
-                            nodesContainer.appendChild(nodeEl);
-                            nodeElements.set(node.id, nodeEl);
-                        }
-                    }
-                    if (node.children) {
-                        node.children.forEach(child => renderRightNodes(child));
-                    }
-                }
-                
-                rightLayouted.children.forEach(child => {
-                    positionRightNodes(child);
-                    renderRightNodes(child);
+                    
+                    storeConnectionData(child, child.id);
                 });
             }
-            
-            // Position left side (mirror)
-            if (leftLayouted && leftLayouted.children && leftLayouted.children.length > 0) {
-                const leftBounds = calculateBounds(leftLayouted);
-                const leftWidth = leftBounds.width;
-                const leftStartX = padding;
-                const leftOffsetY = rootY - leftBounds.height / 2 - leftBounds.y;
-                const leftAvailable = rootX - rootGap - padding;
-                const leftMetrics = collectLayoutMetrics(leftLayouted, leftWidth);
-                const leftSpan = Math.max(1, leftMetrics.maxCenterX - leftMetrics.minCenterX);
-                const leftAvailableSpan = Math.max(1, leftAvailable - leftMetrics.maxHalfWidth);
-                const leftScale = leftAvailableSpan / leftSpan;
-                
-                function positionLeftNodes(node) {
-                    if (node.x !== undefined && node.y !== undefined) {
-                        // Mirror horizontally
-                        const centerX = node.x + node.width / 2;
-                        const mirroredCenterX = leftWidth - centerX;
-                        const finalX = leftStartX + (mirroredCenterX - leftMetrics.minCenterX) * leftScale;
-                        const finalY = leftOffsetY + node.y + node.height / 2;
-                        nodePositions.set(node.id, { x: finalX, y: finalY });
-                        elkNodesById.set(node.id, node);
-                    }
-                    if (node.children) {
-                        node.children.forEach(child => positionLeftNodes(child));
-                    }
-                }
-                
-                function renderLeftNodes(node) {
-                    const pos = nodePositions.get(node.id);
-                    if (pos && node.id !== 'root') {
-                        const nodeData = nodes.find(n => n.id === node.id) ||
-                                       nodes.flatMap(n => n.children || []).find(c => c.id === node.id);
-                        if (nodeData) {
-                            const type = nodeTypes.get(node.id) || 'branch';
-                            const nodeEl = createNode(nodeData, type, pos.x, pos.y);
-                            nodesContainer.appendChild(nodeEl);
-                            nodeElements.set(node.id, nodeEl);
-                        }
-                    }
-                    if (node.children) {
-                        node.children.forEach(child => renderLeftNodes(child));
-                    }
-                }
-                
-                leftLayouted.children.forEach(child => {
-                    positionLeftNodes(child);
-                    renderLeftNodes(child);
-                });
-            }
-            
-            // Center by root (root-anchored centering)
-            const rootPos = nodePositions.get('root');
-            if (rootPos) {
-                const rootElkNode = { x: rootX - (nodeSizes.get('root').width / 2), 
-                                    y: rootY - (nodeSizes.get('root').height / 2),
-                                    width: nodeSizes.get('root').width,
-                                    height: nodeSizes.get('root').height };
-                const { cx, cy } = getNodeCenter(rootElkNode);
-                const offset = computeRootAnchoredOffset(rootElkNode, containerWidth, containerHeight);
-                
-                // Apply offset to all nodes
-                const adjustedPositions = new Map();
-                for (const [nodeId, pos] of nodePositions.entries()) {
-                    adjustedPositions.set(nodeId, {
-                        x: pos.x + offset.dx,
-                        y: pos.y + offset.dy
-                    });
-                }
-                
-                // Update node positions (use custom positions if available, otherwise use adjusted)
-                for (const [nodeId, pos] of adjustedPositions.entries()) {
-                    // Check if there's a custom position, otherwise use adjusted position
-                    const finalPos = customPositions.get(nodeId) || pos;
-                    nodePositions.set(nodeId, finalPos);
-                    const nodeEl = nodeElements.get(nodeId);
-                    if (nodeEl) {
-                        nodeEl.style.left = `${finalPos.x}px`;
-                        nodeEl.style.top = `${finalPos.y}px`;
-                    }
-                }
-                
-                // Canvas stays untransformed; positions already include the offset
-                canvas.style.transform = '';
-            }
-            
-            // Clear custom positions and manual connections on new render
-            customPositions.clear();
-            manualConnections = [];
-            contentEdits.clear();
-            originalConnections = []; // Clear original connections - no automatic lines
-            
-            // Apply collision detection to prevent piling up BEFORE storing original positions
-            ensureNoOverlaps(nodePositions, nodeSizes, nodeElements, containerWidth, containerHeight, padding);
+        }
+        
+        storeConnectionData(root);
+        primaryBranches.forEach(node => storeConnectionData(node, node.id));
 
-            // Recenter/fit the entire layout to use full space and stay inside bounds
-            centerMindMapByBoundingBox(nodePositions, containerWidth, containerHeight, padding);
-            
-            // Store original positions (after ensuring no overlaps)
-            originalPositions.clear();
-            for (const [nodeId, pos] of nodePositions.entries()) {
-                originalPositions.set(nodeId, { x: pos.x, y: pos.y });
-            }
-            
-            // Store original connections data structure (for reference, but don't render lines)
-            // Users will create connections manually in Edit Mode
-            function storeConnectionData(nodeData, parentId = 'root') {
-                if (nodeData.children) {
-                    nodeData.children.forEach(child => {
-                        const parentPos = nodePositions.get(parentId);
-                        const childPos = nodePositions.get(child.id);
-                        
-                        if (parentPos && childPos) {
-                            // Determine side
-                            const side = childPos.x >= parentPos.x ? 1 : -1;
-                            
-                            // Store connection data (but don't render)
-                            originalConnections.push({
-                                id: `orig-${parentId}-${child.id}`,
-                                source: parentId,
-                                sourceAnchor: side === 1 ? 'right' : 'left',
-                                target: child.id,
-                                targetAnchor: side === 1 ? 'left' : 'right',
-                                isManual: false
-                            });
-                        }
-                        
-                        storeConnectionData(child, child.id);
-                    });
-                }
-            }
-            
-            // Store connection data (for reference only, no rendering)
-            storeConnectionData(root);
-            nodes.filter(n => n.parent === 'root').forEach(node => storeConnectionData(node, node.id));
-            
-            // Initialize Lucide icons
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-            
-        } catch (error) {
-            console.error('ELK layout error:', error);
-            console.error('Error stack:', error.stack);
-            showError('Failed to layout mind map: ' + error.message);
-            // Fallback: simple centered layout
-            console.log('Attempting fallback rendering...');
-            renderSimpleLayout(mindMapData, nodeSizes, nodeTypes, container, svg, containerWidth, containerHeight, padding, nodes);
+        // Fit world to viewport
+        const bounds = computeLayoutBounds(nodePositions, nodeSizes);
+        applyWorldTransform(world, worldSvg, bounds, containerWidth, containerHeight, padding);
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function computeLayoutBounds(nodePositions, nodeSizes) {
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (const [nodeId, pos] of nodePositions.entries()) {
+            const size = nodeSizes.get(nodeId) || { width: 120, height: 40 };
+            const halfW = size.width / 2;
+            const halfH = size.height / 2;
+            minX = Math.min(minX, pos.x - halfW);
+            maxX = Math.max(maxX, pos.x + halfW);
+            minY = Math.min(minY, pos.y - halfH);
+            maxY = Math.max(maxY, pos.y + halfH);
+        }
+        if (!isFinite(minX) || !isFinite(maxX)) {
+            minX = 0;
+            maxX = 1;
+        }
+        if (!isFinite(minY) || !isFinite(maxY)) {
+            minY = 0;
+            maxY = 1;
+        }
+        return {
+            minX,
+            maxX,
+            minY,
+            maxY,
+            width: Math.max(1, maxX - minX),
+            height: Math.max(1, maxY - minY)
+        };
+    }
+
+    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding) {
+        const availableW = Math.max(1, containerWidth - (padding * 2));
+        const availableH = Math.max(1, containerHeight - (padding * 2));
+        let scale = Math.min(availableW / bounds.width, availableH / bounds.height);
+        if (!isFinite(scale) || scale <= 0) {
+            scale = 1;
+        }
+        scale = Math.min(scale, 1.2);
+
+        const centerX = (bounds.minX + bounds.maxX) / 2;
+        const centerY = (bounds.minY + bounds.maxY) / 2;
+        const tx = (containerWidth / 2) - (centerX * scale);
+        const ty = (containerHeight / 2) - (centerY * scale);
+
+        worldEl.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        layoutTransform = { scale, tx, ty };
+
+        if (svgEl) {
+            svgEl.setAttribute('viewBox', `${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`);
+            svgEl.setAttribute('width', bounds.width.toString());
+            svgEl.setAttribute('height', bounds.height.toString());
         }
     }
 
@@ -1518,7 +1435,8 @@
                     anchorX = nodeCenterX - containerRect.left;
                     anchorY = nodeCenterY - containerRect.top;
             }
-            return { x: anchorX, y: anchorY };
+            const worldPos = screenToWorld(anchorX, anchorY);
+            return { x: worldPos.x, y: worldPos.y };
         }
         
         // Get bounding rects - these account for all transforms
@@ -1529,7 +1447,8 @@
         const anchorX = anchorRect.left + anchorRect.width / 2 - containerRect.left;
         const anchorY = anchorRect.top + anchorRect.height / 2 - containerRect.top;
         
-        return { x: anchorX, y: anchorY };
+        const worldPos = screenToWorld(anchorX, anchorY);
+        return { x: worldPos.x, y: worldPos.y };
     }
 
     /**
@@ -1646,8 +1565,11 @@
         // If hovering an anchor (not on the source node), snap to that anchor; otherwise follow the mouse
         const hoveredAnchor = e.target.classList?.contains('mindmap-anchor') ? e.target : null;
         const hoveredNodeId = hoveredAnchor?.getAttribute('data-node-id');
-        let targetX = e.clientX - containerRect.left;
-        let targetY = e.clientY - containerRect.top;
+        const mouseScreenX = e.clientX - containerRect.left;
+        const mouseScreenY = e.clientY - containerRect.top;
+        const mouseWorld = screenToWorld(mouseScreenX, mouseScreenY);
+        let targetX = mouseWorld.x;
+        let targetY = mouseWorld.y;
         
         if (hoveredAnchor && hoveredNodeId && hoveredNodeId !== connectionSource) {
             const hoverAnchorSide = hoveredAnchor.getAttribute('data-anchor-side');
@@ -1725,9 +1647,12 @@
         if (!targetAnchor) {
             const targetRect = targetNode.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
+            const clickScreenX = e.clientX - containerRect.left;
+            const clickScreenY = e.clientY - containerRect.top;
+            const clickWorld = screenToWorld(clickScreenX, clickScreenY);
             
-            const clickX = e.clientX - containerRect.left;
-            const clickY = e.clientY - containerRect.top;
+            const clickX = clickWorld.x;
+            const clickY = clickWorld.y;
             
             // Choose anchor based on closest distance to click point
             const anchorSides = ['left', 'right', 'top', 'bottom'];
@@ -2645,13 +2570,18 @@
         draggedNode = node;
         node.classList.add('mindmap-node--dragging');
         
-        const rect = node.getBoundingClientRect();
         const container = document.getElementById('mindmap-display-container');
         const containerRect = container.getBoundingClientRect();
+        const mouseScreenX = e.clientX - containerRect.left;
+        const mouseScreenY = e.clientY - containerRect.top;
+        const mouseWorld = screenToWorld(mouseScreenX, mouseScreenY);
         
-        // Calculate offset from mouse to node center
-        dragOffset.x = e.clientX - (rect.left + rect.width / 2);
-        dragOffset.y = e.clientY - (rect.top + rect.height / 2);
+        const nodeX = parseFloat(node.style.left) || 0;
+        const nodeY = parseFloat(node.style.top) || 0;
+        
+        // Calculate offset from mouse to node center in world coords
+        dragOffset.x = mouseWorld.x - nodeX;
+        dragOffset.y = mouseWorld.y - nodeY;
         
         document.addEventListener('mousemove', handleNodeDrag);
         document.addEventListener('mouseup', handleNodeDragEnd);
@@ -2669,19 +2599,32 @@
         const containerRect = container.getBoundingClientRect();
         const nodeId = draggedNode.getAttribute('data-node-id');
         
-        // Calculate new position
-        let newX = e.clientX - containerRect.left - dragOffset.x;
-        let newY = e.clientY - containerRect.top - dragOffset.y;
+        const mouseScreenX = e.clientX - containerRect.left;
+        const mouseScreenY = e.clientY - containerRect.top;
+        const mouseWorld = screenToWorld(mouseScreenX, mouseScreenY);
         
-        // Get node size for boundary checking
+        // Calculate new position in world coords
+        let newX = mouseWorld.x - dragOffset.x;
+        let newY = mouseWorld.y - dragOffset.y;
+        
+        // Get node size for boundary checking (convert to world units)
         const nodeRect = draggedNode.getBoundingClientRect();
-        const nodeWidth = nodeRect.width;
-        const nodeHeight = nodeRect.height;
-        const padding = 20;
+        const scale = layoutTransform.scale || 1;
+        const nodeWidth = nodeRect.width / scale;
+        const nodeHeight = nodeRect.height / scale;
+        const paddingWorld = layoutPadding / scale;
         
-        // Constrain to container bounds
-        newX = Math.max(padding, Math.min(newX, containerRect.width - nodeWidth - padding));
-        newY = Math.max(padding, Math.min(newY, containerRect.height - nodeHeight - padding));
+        const topLeftWorld = screenToWorld(0, 0);
+        const bottomRightWorld = screenToWorld(containerRect.width, containerRect.height);
+        
+        const minX = topLeftWorld.x + paddingWorld + (nodeWidth / 2);
+        const maxX = bottomRightWorld.x - paddingWorld - (nodeWidth / 2);
+        const minY = topLeftWorld.y + paddingWorld + (nodeHeight / 2);
+        const maxY = bottomRightWorld.y - paddingWorld - (nodeHeight / 2);
+        
+        // Constrain to viewport bounds
+        newX = Math.max(minX, Math.min(newX, maxX));
+        newY = Math.max(minY, Math.min(newY, maxY));
         
         // Update position
         draggedNode.style.left = `${newX}px`;
