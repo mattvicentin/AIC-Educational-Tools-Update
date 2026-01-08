@@ -589,49 +589,27 @@
             maxWidth = Math.max(maxWidth, size.width);
             maxHeight = Math.max(maxHeight, size.height);
         });
-        const levelGap = Math.max(180, maxWidth * 1.1);
-        const rootGap = Math.max(levelGap, maxWidth * 1.4);
-        const verticalGap = Math.max(40, maxHeight * 0.6);
-        const topLevelGap = Math.max(verticalGap * 1.2, 50);
+        const horizontalGap = Math.max(60, maxWidth * 0.6);
+        const levelGap = Math.max(140, maxHeight * 2.2);
 
-        const subtreeHeights = new Map();
-        function computeSubtreeHeight(node) {
-            if (subtreeHeights.has(node.id)) return subtreeHeights.get(node.id);
+        const subtreeWidths = new Map();
+        function computeSubtreeWidth(node) {
+            if (subtreeWidths.has(node.id)) return subtreeWidths.get(node.id);
             const size = nodeSizes.get(node.id) || { width: 120, height: 40 };
             const children = node.children || [];
             if (children.length === 0) {
-                subtreeHeights.set(node.id, size.height);
-                return size.height;
+                subtreeWidths.set(node.id, size.width);
+                return size.width;
             }
             let totalChildren = 0;
             children.forEach(child => {
-                totalChildren += computeSubtreeHeight(child);
+                totalChildren += computeSubtreeWidth(child);
             });
-            totalChildren += verticalGap * (children.length - 1);
-            const total = Math.max(size.height, totalChildren);
-            subtreeHeights.set(node.id, total);
+            totalChildren += horizontalGap * (children.length - 1);
+            const total = Math.max(size.width, totalChildren);
+            subtreeWidths.set(node.id, total);
             return total;
         }
-
-        // Split branches to balance left/right
-        const weightedBranches = primaryBranches.map(node => ({
-            node,
-            height: computeSubtreeHeight(node)
-        })).sort((a, b) => b.height - a.height);
-
-        const leftBranches = [];
-        const rightBranches = [];
-        let leftTotal = 0;
-        let rightTotal = 0;
-        weightedBranches.forEach(item => {
-            if (leftTotal <= rightTotal) {
-                leftBranches.push(item);
-                leftTotal += item.height;
-            } else {
-                rightBranches.push(item);
-                rightTotal += item.height;
-            }
-        });
 
         const nodePositions = new Map();
         const nodeElements = new Map();
@@ -642,46 +620,60 @@
         nodesContainer.appendChild(rootEl);
         nodeElements.set('root', rootEl);
 
-        function layoutSubtree(node, side, depth, centerY) {
-            const x = side * (rootGap + (depth - 1) * levelGap);
-            nodePositions.set(node.id, { x, y: centerY });
+        function layoutSubtree(node, centerX, depth) {
+            const y = depth * levelGap;
+            nodePositions.set(node.id, { x: centerX, y });
 
             const children = node.children || [];
             if (children.length === 0) return;
 
-            let totalHeight = 0;
+            let totalWidth = 0;
             children.forEach(child => {
-                totalHeight += computeSubtreeHeight(child);
+                totalWidth += computeSubtreeWidth(child);
             });
-            totalHeight += verticalGap * (children.length - 1);
+            totalWidth += horizontalGap * (children.length - 1);
 
-            let cursorY = centerY - (totalHeight / 2);
+            let cursorX = centerX - (totalWidth / 2);
             children.forEach(child => {
-                const childHeight = computeSubtreeHeight(child);
-                const childCenterY = cursorY + (childHeight / 2);
-                layoutSubtree(child, side, depth + 1, childCenterY);
-                cursorY += childHeight + verticalGap;
+                const childWidth = computeSubtreeWidth(child);
+                const childCenterX = cursorX + (childWidth / 2);
+                layoutSubtree(child, childCenterX, depth + 1);
+                cursorX += childWidth + horizontalGap;
             });
         }
 
-        function layoutSide(branches, side) {
-            if (branches.length === 0) return;
-            let totalHeight = 0;
-            branches.forEach(item => {
-                totalHeight += item.height;
+        if (primaryBranches.length > 0) {
+            let totalWidth = 0;
+            primaryBranches.forEach(child => {
+                totalWidth += computeSubtreeWidth(child);
             });
-            totalHeight += topLevelGap * (branches.length - 1);
-
-            let cursorY = -totalHeight / 2;
-            branches.forEach(item => {
-                const centerY = cursorY + (item.height / 2);
-                layoutSubtree(item.node, side, 1, centerY);
-                cursorY += item.height + topLevelGap;
+            totalWidth += horizontalGap * (primaryBranches.length - 1);
+            let cursorX = -totalWidth / 2;
+            primaryBranches.forEach(child => {
+                const childWidth = computeSubtreeWidth(child);
+                const childCenterX = cursorX + (childWidth / 2);
+                layoutSubtree(child, childCenterX, 1);
+                cursorX += childWidth + horizontalGap;
             });
         }
 
-        layoutSide(leftBranches, -1);
-        layoutSide(rightBranches, 1);
+        function expandHorizontalToFill() {
+            const bounds = computeLayoutBounds(nodePositions, nodeSizes);
+            const availableW = Math.max(1, containerWidth - (padding * 2));
+            const availableH = Math.max(1, containerHeight - (padding * 2));
+            let scale = Math.min(availableW / bounds.width, availableH / bounds.height);
+            if (!isFinite(scale) || scale <= 0) scale = 1;
+            const widthAfterScale = bounds.width * scale;
+            if (widthAfterScale <= 0) return;
+            const expand = availableW / widthAfterScale;
+            if (expand <= 1.01) return;
+            const centerX = (bounds.minX + bounds.maxX) / 2;
+            for (const [, pos] of nodePositions.entries()) {
+                pos.x = centerX + (pos.x - centerX) * expand;
+            }
+        }
+
+        expandHorizontalToFill();
 
         function renderTree(node, depth) {
             const pos = nodePositions.get(node.id);
@@ -695,8 +687,7 @@
             }
         }
 
-        leftBranches.forEach(item => renderTree(item.node, 1));
-        rightBranches.forEach(item => renderTree(item.node, 1));
+        primaryBranches.forEach(node => renderTree(node, 1));
 
         // Reset edit data on new render
         customPositions.clear();
@@ -718,13 +709,13 @@
                     const childPos = nodePositions.get(child.id);
                     
                     if (parentPos && childPos) {
-                        const side = childPos.x >= parentPos.x ? 1 : -1;
+                        const downwards = childPos.y >= parentPos.y;
                         originalConnections.push({
                             id: `orig-${parentId}-${child.id}`,
                             source: parentId,
-                            sourceAnchor: side === 1 ? 'right' : 'left',
+                            sourceAnchor: downwards ? 'bottom' : 'top',
                             target: child.id,
-                            targetAnchor: side === 1 ? 'left' : 'right',
+                            targetAnchor: downwards ? 'top' : 'bottom',
                             isManual: false
                         });
                     }
@@ -782,10 +773,7 @@
         const availableW = Math.max(1, containerWidth - (padding * 2));
         const availableH = Math.max(1, containerHeight - (padding * 2));
         let scale = Math.min(availableW / bounds.width, availableH / bounds.height);
-        if (!isFinite(scale) || scale <= 0) {
-            scale = 1;
-        }
-        scale = Math.min(scale, 1.2);
+        if (!isFinite(scale) || scale <= 0) scale = 1;
 
         const centerX = (bounds.minX + bounds.maxX) / 2;
         const centerY = (bounds.minY + bounds.maxY) / 2;
@@ -2612,15 +2600,16 @@
         const scale = layoutTransform.scale || 1;
         const nodeWidth = nodeRect.width / scale;
         const nodeHeight = nodeRect.height / scale;
-        const paddingWorld = layoutPadding / scale;
+        const paddingWorldX = layoutPadding / scale;
+        const paddingWorldY = layoutPadding / scale;
         
         const topLeftWorld = screenToWorld(0, 0);
         const bottomRightWorld = screenToWorld(containerRect.width, containerRect.height);
         
-        const minX = topLeftWorld.x + paddingWorld + (nodeWidth / 2);
-        const maxX = bottomRightWorld.x - paddingWorld - (nodeWidth / 2);
-        const minY = topLeftWorld.y + paddingWorld + (nodeHeight / 2);
-        const maxY = bottomRightWorld.y - paddingWorld - (nodeHeight / 2);
+        const minX = topLeftWorld.x + paddingWorldX + (nodeWidth / 2);
+        const maxX = bottomRightWorld.x - paddingWorldX - (nodeWidth / 2);
+        const minY = topLeftWorld.y + paddingWorldY + (nodeHeight / 2);
+        const maxY = bottomRightWorld.y - paddingWorldY - (nodeHeight / 2);
         
         // Constrain to viewport bounds
         newX = Math.max(minX, Math.min(newX, maxX));
