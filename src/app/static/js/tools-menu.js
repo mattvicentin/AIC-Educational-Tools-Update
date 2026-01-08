@@ -285,7 +285,16 @@
             return;
         }
         
-        // TODO: Implement other tools (narrative)
+        // Handle narrative tool
+        if (tool === 'narrative') {
+            if (window.narrativeTool && typeof window.narrativeTool.open === 'function') {
+                window.narrativeTool.open();
+            } else {
+                console.warn('Narrative tool not available');
+            }
+            return;
+        }
+        
         // For now, just log the selection
         console.log(`Tool "${tool}" not yet implemented`);
     }

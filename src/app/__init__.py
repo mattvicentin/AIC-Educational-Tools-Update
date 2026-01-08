@@ -303,6 +303,9 @@ def create_app(config_name=None):
     
     # Mind Map Tool integration
     from src.app.mindmap import mindmap
+    
+    # Narrative Tool integration
+    from src.app.narrative import narrative
 
     app.register_blueprint(auth, url_prefix="/auth")
     app.register_blueprint(chat, url_prefix="/chat")
@@ -328,6 +331,9 @@ def create_app(config_name=None):
     
     # Mind Map Tool endpoints
     app.register_blueprint(mindmap, url_prefix="/api/mindmap")
+    
+    # Narrative Tool endpoints
+    app.register_blueprint(narrative, url_prefix="/api/narrative")
     
     # Dev API (experimental endpoints)
     app.register_blueprint(card_view_api)  # url_prefix set in blueprint

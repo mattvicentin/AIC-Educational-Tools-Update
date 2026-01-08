@@ -1,0 +1,180 @@
+{# Narrative Panel Component #}
+{# Modal overlay panel for narrative generation and display #}
+
+<div id="narrative-panel-backdrop" class="narrative-panel-backdrop hidden"></div>
+<div id="narrative-panel" class="narrative-panel hidden" role="dialog" aria-labelledby="narrative-panel-title" aria-modal="false">
+    <div class="narrative-panel__header">
+        <h2 id="narrative-panel-title" class="narrative-panel__title">Create your Narrative</h2>
+        <button type="button" class="narrative-panel__close" id="narrative-panel-close" aria-label="Close narrative panel">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+    </div>
+    
+    <div class="narrative-panel__content" id="narrative-panel-content">
+        <!-- Step 1: Configuration Form -->
+        <div id="narrative-step-config" class="narrative-step narrative-step--active">
+            <form id="narrative-config-form" class="narrative-config-form">
+                <div class="narrative-config-field">
+                    <label for="narrative-context-mode" class="narrative-config-label">
+                        Context to be used
+                    </label>
+                    <select id="narrative-context-mode" name="context_mode" class="narrative-config-select" required>
+                        <option value="chat">Chat only</option>
+                        <option value="library">Library only</option>
+                        <option value="both">Chat + Library</option>
+                    </select>
+                </div>
+                
+                <div id="narrative-library-section" class="narrative-config-field narrative-config-field--hidden">
+                    <label for="narrative-library-docs" class="narrative-config-label">
+                        Select Library Documents
+                    </label>
+                    <div id="narrative-library-docs-container" class="narrative-library-docs">
+                        <div id="narrative-library-empty" class="narrative-library-empty">
+                            <p>No documents in library.</p>
+                            <input type="file" id="narrative-library-file-input" accept=".pdf,.docx,.txt" class="hidden">
+                            <button type="button" class="narrative-library-add-btn" id="narrative-library-add-btn">
+                                Add files to Library
+                            </button>
+                        </div>
+                        <div id="narrative-library-list" class="narrative-library-list hidden"></div>
+                        <div id="narrative-library-upload-status" class="narrative-library-upload-status hidden"></div>
+                    </div>
+                </div>
+                
+                <div class="narrative-config-field">
+                    <label for="narrative-type" class="narrative-config-label">
+                        Type of Narrative
+                    </label>
+                    <select id="narrative-type" name="narrative_type" class="narrative-config-select" required>
+                        <option value="linear">Linear Narrative</option>
+                        <option value="interactive">Interactive Narrative</option>
+                    </select>
+                </div>
+                
+                <div id="narrative-complexity-field" class="narrative-config-field narrative-config-field--hidden">
+                    <label for="narrative-complexity" class="narrative-config-label">
+                        Complexity
+                    </label>
+                    <select id="narrative-complexity" name="complexity" class="narrative-config-select">
+                        <option value="explanation">Explanation</option>
+                        <option value="simulation">Simulation</option>
+                        <option value="challenge">Challenge</option>
+                    </select>
+                </div>
+                
+                <div class="narrative-config-field">
+                    <label for="narrative-instructions" class="narrative-config-label">
+                        Additional instructions (optional)
+                    </label>
+                    <textarea 
+                        id="narrative-instructions" 
+                        name="instructions" 
+                        class="narrative-config-textarea"
+                        rows="3"
+                        placeholder="e.g., focus on specific concepts, emphasize certain themes, include particular scenarios"
+                    ></textarea>
+                </div>
+                
+                <div class="narrative-config-actions">
+                    <button type="submit" class="narrative-btn narrative-btn--primary" id="narrative-generate-btn">
+                        Generate Narrative
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Step 2: Narrative Display -->
+        <div id="narrative-step-display" class="narrative-step narrative-step--hidden">
+            <!-- Linear Narrative Display -->
+            <div id="narrative-linear-container" class="narrative-linear-container hidden">
+                <div id="narrative-linear-content" class="narrative-linear-content">
+                    <!-- Linear narrative text will be inserted here -->
+                </div>
+                <div class="narrative-actions">
+                    <button type="button" class="narrative-btn narrative-btn--primary" id="narrative-continue-btn">
+                        Continue to Reflection
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Interactive Narrative Display -->
+            <div id="narrative-interactive-container" class="narrative-interactive-container hidden">
+                <div id="narrative-node-content" class="narrative-node-content">
+                    <!-- Current node content will be inserted here -->
+                </div>
+                <div id="narrative-choices-container" class="narrative-choices-container">
+                    <!-- Choice buttons will be inserted here -->
+                </div>
+                <div class="narrative-actions">
+                    <button type="button" class="narrative-btn narrative-btn--primary hidden" id="narrative-interactive-continue-btn">
+                        Continue to Reflection
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 3: Reflection -->
+        <div id="narrative-step-reflection" class="narrative-step narrative-step--hidden">
+            <div class="narrative-reflection-prompt" id="narrative-reflection-prompt">
+                <!-- Reflection prompt will be inserted here -->
+            </div>
+            <div class="narrative-config-field">
+                <textarea 
+                    id="narrative-reflection-text" 
+                    name="reflection_text" 
+                    class="narrative-reflection-textarea"
+                    rows="6"
+                    placeholder="Write your reflection here..."
+                ></textarea>
+            </div>
+            <div class="narrative-actions">
+                <button type="button" class="narrative-btn narrative-btn--primary" id="narrative-submit-reflection-btn">
+                    Submit Reflection
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 4: Feedback -->
+        <div id="narrative-step-feedback" class="narrative-step narrative-step--hidden">
+            <div id="narrative-feedback-content" class="narrative-feedback-content hidden">
+                <!-- Feedback will be displayed here -->
+            </div>
+            <div class="narrative-actions">
+                <button type="button" class="narrative-btn narrative-btn--primary" id="narrative-get-feedback-btn">
+                    Get Feedback
+                </button>
+                <button type="button" class="narrative-btn narrative-btn--secondary" id="narrative-skip-feedback-btn">
+                    Skip
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 5: Send to Chat -->
+        <div id="narrative-step-send" class="narrative-step narrative-step--hidden">
+            <div class="narrative-send-summary">
+                <p>Ready to send your narrative experience to chat?</p>
+                <p class="narrative-send-summary-text">This will include the narrative, your reflection, and any feedback you received.</p>
+            </div>
+            <div class="narrative-actions">
+                <button type="button" class="narrative-btn narrative-btn--primary" id="narrative-send-to-chat-btn">
+                    Send to Chat
+                </button>
+            </div>
+        </div>
+        
+        <!-- Loading/Error States -->
+        <div id="narrative-loading" class="narrative-loading hidden">
+            <div class="narrative-loading-spinner"></div>
+            <p id="narrative-loading-text">Generating narrative...</p>
+        </div>
+        
+        <div id="narrative-error" class="narrative-error hidden">
+            <div class="narrative-error-icon">⚠️</div>
+            <p id="narrative-error-text"></p>
+            <button type="button" class="narrative-btn narrative-btn--primary" id="narrative-error-retry">
+                Retry
+            </button>
+        </div>
+    </div>
+</div>
