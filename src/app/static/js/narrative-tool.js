@@ -691,6 +691,16 @@
         }
 
         reflectionText = text;
+        
+        // Ensure both buttons are visible when showing feedback step
+        const getFeedbackBtn = document.getElementById('narrative-get-feedback-btn');
+        const skipFeedbackBtn = document.getElementById('narrative-skip-feedback-btn');
+        if (getFeedbackBtn) getFeedbackBtn.classList.remove('hidden');
+        if (skipFeedbackBtn) {
+            skipFeedbackBtn.classList.remove('hidden');
+            skipFeedbackBtn.textContent = 'Skip';
+        }
+        
         showStep(NARRATIVE_STEPS.FEEDBACK);
     }
 

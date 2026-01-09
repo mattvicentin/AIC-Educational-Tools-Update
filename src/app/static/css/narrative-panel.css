@@ -115,6 +115,20 @@
   display: none;
 }
 
+/* Feedback Step - Special styling for vertical centering */
+#narrative-step-feedback.narrative-step--active {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100%;
+  width: 100%;
+}
+
+#narrative-step-feedback .narrative-actions--centered {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
 /* Configuration Form */
 .narrative-config-form {
   display: flex;
@@ -499,6 +513,10 @@
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 1.5rem;
+}
+
+.narrative-actions--centered {
+  justify-content: center;
 }
 
 /* Loading/Error States */
