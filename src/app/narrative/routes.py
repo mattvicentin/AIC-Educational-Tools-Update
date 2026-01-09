@@ -219,17 +219,23 @@ def generate_interactive_narrative_prompt(context_parts: Dict[str, Optional[str]
     complexity_constraints = {
         'explanation': {
             'choices_per_node': 2,
-            'min_chars': 1000,
+            'min_chars': 2000,
+            'min_nodes': 5,
+            'min_chars_per_node': 200,
             'description': 'Few choices, explicit explanations'
         },
         'simulation': {
             'choices_per_node': 3,
-            'min_chars': 2000,
+            'min_chars': 4000,
+            'min_nodes': 8,
+            'min_chars_per_node': 300,
             'description': 'Multiple trade-offs, delayed consequences'
         },
         'challenge': {
             'choices_per_node': 4,
-            'min_chars': 3000,
+            'min_chars': 6000,
+            'min_nodes': 12,
+            'min_chars_per_node': 400,
             'description': 'Conflicting goals, minimal guidance'
         }
     }
@@ -253,24 +259,32 @@ Create an interactive narrative where the learner makes choices that affect the 
 
 COMPLEXITY LEVEL: {complexity.upper()}
 - Choices per decision point: {constraints['choices_per_node']}
-- Minimum total length: {constraints['min_chars']} characters
+- Minimum total length: {constraints['min_chars']} characters across ALL nodes
+- Minimum number of nodes: {constraints['min_nodes']} nodes (including start and endings)
+- Minimum content per node: {constraints['min_chars_per_node']} characters
 - Style: {constraints['description']}
-- Story length should be automatically determined by complexity level (more complex = longer story with more decision points)
+- Story depth: More complex = deeper story with more interconnected decision points and longer content
 
 INTERACTIVE NARRATIVE STRUCTURE:
-- Start with an initial node that sets up the story
+- Start with an initial node that sets up the story (at least {constraints['min_chars_per_node']} characters)
+- CRITICAL: Create AT LEAST {constraints['min_nodes']} total nodes to ensure sufficient depth and complexity
+- IMPORTANT: Count your nodes carefully - you need {constraints['min_nodes']} nodes minimum (including start node and all endings)
 - Each node (except endings) must have exactly {constraints['choices_per_node']} choices
-- Choices should connect to concepts from the course materials
-- Create multiple paths that lead to different endings
-- Each ending should reflect different outcomes based on choices made
+- Choices should connect to concepts from the course materials and present meaningful dilemmas
+- Create multiple interconnected paths that lead to different endings (at least 3-4 different endings for Challenge, 2-3 for others)
+- Each ending should reflect different outcomes based on choices made and be substantial (at least {constraints['min_chars_per_node']} characters)
 - The total narrative should be at least {constraints['min_chars']} characters across all nodes
+- For Challenge level: Create deeper branching with 3-4 decision points before reaching endings, showing how early choices affect later outcomes
+- TIP: To reach {constraints['min_nodes']} nodes, plan your structure: 1 start + multiple decision nodes + multiple endings = {constraints['min_nodes']}+ total
 
 NODE REQUIREMENTS:
 - Each node must have: id, content (story text), choices array, isEnding flag
 - Each choice must have: id, text (choice description), nextNode (id of next node)
 - Ending nodes have empty choices array and isEnding: true
-- Content should be substantial enough to advance the story meaningfully
-- Choices should be meaningful and connect to course concepts
+- Content should be substantial (minimum {constraints['min_chars_per_node']} characters per node) to advance the story meaningfully
+- Choices should be meaningful, present real dilemmas, and connect to course concepts
+- For Challenge level: Choices should present conflicting goals where no option is clearly "best"
+- Each node's content should be rich enough to immerse the learner in the scenario
 
 ADDITIONAL INSTRUCTIONS:
 {instructions if instructions else "Create an interactive narrative that effectively illustrates key concepts through decision-making scenarios."}
@@ -308,10 +322,16 @@ OUTPUT FORMAT (JSON):
 
 CRITICAL REQUIREMENTS:
 - Generate the COMPLETE narrative tree upfront (all nodes, all paths, all endings)
-- Ensure minimum character count of {constraints['min_chars']} characters total across all nodes
+- NODE COUNT: Create AT LEAST {constraints['min_nodes']} total nodes (this is mandatory - count them before responding!)
+- To reach {constraints['min_nodes']} nodes: Plan 1 start node + multiple decision nodes (each with {constraints['choices_per_node']} choices) + multiple endings
+- Example structure for {constraints['min_nodes']} nodes: Start (1) → Decision nodes (6-8) → Endings (3-4) = {constraints['min_nodes']}+ total
+- Ensure minimum character count of {constraints['min_chars']} characters total across ALL nodes
 - Each non-ending node must have exactly {constraints['choices_per_node']} choices
-- Create multiple endings (at least 2-3 different endings)
+- Each node's content must be at least {constraints['min_chars_per_node']} characters (longer is better, especially for Challenge level)
+- Create multiple endings: at least 3-4 different endings for Challenge level, 2-3 for Simulation, 2 for Explanation
+- For Challenge level: Ensure there are multiple decision points (at least 3-4 choices before reaching any ending) to show how decisions compound
 - All content must be grounded in the provided context materials
+- For Challenge level: Make choices more nuanced - avoid obvious "good vs bad" options; instead present trade-offs where each choice has meaningful consequences
 
 NODE REFERENCE VALIDATION:
 - EVERY choice's "nextNode" field MUST reference a node ID that exists in your "nodes" array
@@ -355,9 +375,13 @@ VALIDATION CHECKLIST (verify before responding):
 1. All node IDs are unique
 2. Every "nextNode" in choices references an existing node ID
 3. "startNodeId" exists in the nodes array
-4. All non-ending nodes have exactly {constraints['choices_per_node']} choices
-5. All ending nodes have empty choices arrays and isEnding: true
-6. Total content length meets minimum of {constraints['min_chars']} characters
+4. Total number of nodes is at least {constraints['min_nodes']}
+5. All non-ending nodes have exactly {constraints['choices_per_node']} choices
+6. All ending nodes have empty choices arrays and isEnding: true
+7. Each node's content is at least {constraints['min_chars_per_node']} characters
+8. Total content length meets minimum of {constraints['min_chars']} characters across all nodes
+9. For Challenge level: There are at least 3-4 decision points (non-ending nodes) before reaching any ending
+10. Multiple endings exist (3-4 for Challenge, 2-3 for Simulation, 2 for Explanation)
 
 Return ONLY valid JSON, no additional text before or after"""
 
@@ -397,6 +421,31 @@ def generate_narrative():
         if narrative_type == 'interactive':
             if not complexity or complexity not in ('explanation', 'simulation', 'challenge'):
                 return jsonify({'error': 'complexity is required for interactive narratives and must be "explanation", "simulation", or "challenge"'}), 400
+            
+            # Define complexity constraints for validation (needed in this scope)
+            complexity_constraints = {
+                'explanation': {
+                    'choices_per_node': 2,
+                    'min_chars': 2000,
+                    'min_nodes': 5,
+                    'min_chars_per_node': 200,
+                    'description': 'Few choices, explicit explanations'
+                },
+                'simulation': {
+                    'choices_per_node': 3,
+                    'min_chars': 4000,
+                    'min_nodes': 8,
+                    'min_chars_per_node': 300,
+                    'description': 'Multiple trade-offs, delayed consequences'
+                },
+                'challenge': {
+                    'choices_per_node': 4,
+                    'min_chars': 6000,
+                    'min_nodes': 12,
+                    'min_chars_per_node': 400,
+                    'description': 'Conflicting goals, minimal guidance'
+                }
+            }
         
         # Check chat access
         chat_obj = Chat.query.get(chat_id)
@@ -466,6 +515,33 @@ def generate_narrative():
                 }), 200
                 
             else:  # interactive
+                # Define complexity constraints for validation (needed in this scope)
+                complexity_constraints = {
+                    'explanation': {
+                        'choices_per_node': 2,
+                        'min_chars': 2000,
+                        'min_nodes': 5,
+                        'min_chars_per_node': 200,
+                        'description': 'Few choices, explicit explanations'
+                    },
+                    'simulation': {
+                        'choices_per_node': 3,
+                        'min_chars': 4000,
+                        'min_nodes': 8,
+                        'min_chars_per_node': 300,
+                        'description': 'Multiple trade-offs, delayed consequences'
+                    },
+                    'challenge': {
+                        'choices_per_node': 4,
+                        'min_chars': 6000,
+                        'min_nodes': 12,
+                        'min_chars_per_node': 400,
+                        'description': 'Conflicting goals, minimal guidance'
+                    }
+                }
+                # Get constraints for validation
+                constraints = complexity_constraints.get(complexity, complexity_constraints['explanation'])
+                
                 # Generate interactive narrative prompt
                 prompt = generate_interactive_narrative_prompt(context_parts, context_mode, complexity, instructions)
                 
@@ -494,20 +570,40 @@ Step 3: Add choices to each node, referencing ONLY the node IDs from Step 1
 Step 4: Verify all references match before returning
 
 Return ONLY valid JSON that passes these validation checks. Double-check all node references before responding.""",
-                            max_tokens=8000  # Increased to ensure enough space for complete narratives
+                            max_tokens=8192  # Maximum supported by current Claude models (claude-3-5-sonnet/haiku)
                         )
                         
                         if not text_content or not text_content.strip():
                             raise ValueError("Empty response from AI")
                         
-                        # Extract JSON from response
-                        json_start = text_content.find('{')
-                        json_end = text_content.rfind('}') + 1
-                        if json_start == -1 or json_end == 0:
-                            raise ValueError("No JSON found in response")
+                        # Extract JSON from response (handle text before/after JSON)
+                        import re
+                        # Try to find JSON object using regex (more robust)
+                        json_match = re.search(r'\{[\s\S]*\}', text_content)
+                        if json_match:
+                            json_text = json_match.group(0)
+                        else:
+                            # Fallback to simple find (in case regex fails)
+                            json_start = text_content.find('{')
+                            json_end = text_content.rfind('}') + 1
+                            if json_start == -1 or json_end == 0:
+                                # Log the response for debugging
+                                current_app.logger.error(f"Failed to extract JSON from response. Response length: {len(text_content)}, First 500 chars: {text_content[:500]}")
+                                raise ValueError(
+                                    f"No JSON found in response. Response may be truncated or malformed. "
+                                    f"Response preview: {text_content[:200]}..."
+                                )
+                            json_text = text_content[json_start:json_end]
                         
-                        json_text = text_content[json_start:json_end]
-                        narrative_data = json.loads(json_text)
+                        # Try to parse JSON
+                        try:
+                            narrative_data = json.loads(json_text)
+                        except json.JSONDecodeError as e:
+                            current_app.logger.error(f"JSON parse error: {e}. JSON text length: {len(json_text)}, First 500 chars: {json_text[:500]}")
+                            raise ValueError(
+                                f"Failed to parse JSON from response. The response may be incomplete or malformed. "
+                                f"JSON decode error: {str(e)}"
+                            )
                         
                         # Validate structure
                         if 'nodes' not in narrative_data:
@@ -534,6 +630,68 @@ Return ONLY valid JSON that passes these validation checks. Double-check all nod
                         start_node_exists = narrative_data['startNodeId'] in node_ids
                         if not start_node_exists:
                             raise ValueError(f"Start node '{narrative_data['startNodeId']}' not found in nodes")
+                        
+                        # Validate minimum node count (allow 70% of minimum as acceptable, or at least 3 nodes)
+                        min_nodes_threshold = max(3, int(constraints['min_nodes'] * 0.7))
+                        if len(narrative_data['nodes']) < min_nodes_threshold:
+                            raise ValueError(
+                                f"Narrative has {len(narrative_data['nodes'])} nodes, but minimum required is {constraints['min_nodes']} nodes "
+                                f"(acceptable minimum: {min_nodes_threshold}). Please create more nodes to meet the complexity requirements."
+                            )
+                        elif len(narrative_data['nodes']) < constraints['min_nodes']:
+                            # Warn but don't fail if close to minimum (70-100% of required)
+                            current_app.logger.warning(
+                                f"Narrative has {len(narrative_data['nodes'])} nodes, below recommended {constraints['min_nodes']} nodes. "
+                                f"Accepting but consider adding more nodes for better complexity."
+                            )
+                        
+                        # Validate minimum content per node and calculate total
+                        total_chars = 0
+                        for node in narrative_data['nodes']:
+                            node_content = str(node.get('content', ''))
+                            node_chars = len(node_content)
+                            total_chars += node_chars
+                            
+                            # Allow 70% of minimum per node (some nodes can be shorter if others are longer)
+                            min_chars_per_node_threshold = int(constraints['min_chars_per_node'] * 0.7)
+                            if node_chars < min_chars_per_node_threshold:
+                                raise ValueError(
+                                    f"Node '{node.get('id')}' has only {node_chars} characters, but minimum required is {constraints['min_chars_per_node']} characters per node "
+                                    f"(acceptable minimum: {min_chars_per_node_threshold}). Please expand the content for this node."
+                                )
+                        
+                        # Validate total character count (allow 80% of minimum as acceptable)
+                        min_chars_threshold = int(constraints['min_chars'] * 0.8)
+                        if total_chars < min_chars_threshold:
+                            raise ValueError(
+                                f"Total narrative length is {total_chars} characters, but minimum required is {constraints['min_chars']} characters "
+                                f"(acceptable minimum: {min_chars_threshold}). Please expand content across all nodes to meet the complexity requirements."
+                            )
+                        elif total_chars < constraints['min_chars']:
+                            # Warn but don't fail if close to minimum
+                            current_app.logger.warning(
+                                f"Narrative has {total_chars} characters, slightly below recommended {constraints['min_chars']} characters. "
+                                f"Accepting but consider expanding content for better depth."
+                            )
+                        
+                        # For Challenge level: Validate minimum decision points before endings
+                        if complexity == 'challenge':
+                            # Count non-ending nodes (decision points)
+                            decision_points = [n for n in narrative_data['nodes'] if not n.get('isEnding', False)]
+                            if len(decision_points) < 3:
+                                raise ValueError(
+                                    f"Challenge level requires at least 3-4 decision points before reaching endings, but only {len(decision_points)} non-ending nodes found. "
+                                    f"Please create more decision points to show how choices compound."
+                                )
+                            
+                            # Validate that paths have multiple decision points (check that endings aren't reached too quickly)
+                            # This is a heuristic: ensure at least some paths go through 3+ nodes
+                            ending_nodes = [n for n in narrative_data['nodes'] if n.get('isEnding', False)]
+                            if len(ending_nodes) < 3:
+                                raise ValueError(
+                                    f"Challenge level requires at least 3-4 different endings, but only {len(ending_nodes)} endings found. "
+                                    f"Please create more diverse endings based on different choice paths."
+                                )
                         
                         # Second pass: validate choices and their references
                         for node in narrative_data['nodes']:
@@ -566,11 +724,18 @@ Return ONLY valid JSON that passes these validation checks. Double-check all nod
                             # Add a retry instruction to the prompt
                             error_msg = str(e)
                             prompt += f"\n\nIMPORTANT: Your previous attempt had validation errors: {error_msg}\n"
-                            prompt += "Please ensure ALL node references are correct. Follow these steps:\n"
-                            prompt += "1. First, list ALL node IDs you will create\n"
-                            prompt += "2. Then create the nodes array with those exact IDs\n"
-                            prompt += "3. When writing choices, reference ONLY the node IDs from step 1\n"
-                            prompt += "4. Double-check every 'nextNode' value matches an existing node 'id' exactly"
+                            prompt += "Please ensure ALL requirements are met. Follow these steps:\n"
+                            prompt += f"1. Create AT LEAST {constraints['min_nodes']} total nodes\n"
+                            prompt += f"2. Each node must have at least {constraints['min_chars_per_node']} characters of content\n"
+                            prompt += f"3. Total content must be at least {constraints['min_chars']} characters across all nodes\n"
+                            prompt += "4. First, list ALL node IDs you will create\n"
+                            prompt += "5. Then create the nodes array with those exact IDs\n"
+                            prompt += "6. When writing choices, reference ONLY the node IDs from step 4\n"
+                            prompt += "7. Double-check every 'nextNode' value matches an existing node 'id' exactly\n"
+                            if complexity == 'challenge':
+                                prompt += "8. For Challenge level: Ensure at least 3-4 decision points (non-ending nodes) before reaching any ending\n"
+                                prompt += "9. For Challenge level: Create at least 3-4 different endings\n"
+                                prompt += "10. For Challenge level: Make choices present conflicting goals with meaningful trade-offs"
                         else:
                             # Last attempt failed, re-raise the error
                             raise

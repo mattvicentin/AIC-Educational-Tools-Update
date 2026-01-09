@@ -557,28 +557,53 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
     except ImportError:
         raise Exception("Anthropic SDK not installed. Install with: pip install anthropic")
 
-    def _get_candidate_models() -> List[str]:
+    def _get_model_max_tokens(model_name: str) -> int:
         """
-        Build a small fallback list of models.
+        Get the maximum output tokens allowed for a specific model.
+        Returns a high default if model not in the list.
+        """
+        model_limits = {
+            "claude-3-haiku-20240307": 4096,  # Legacy Haiku has lower limit
+            "claude-3-5-haiku-20241022": 8192,  # Current Haiku
+            "claude-3-5-sonnet-20241022": 8192,  # Current Sonnet
+            "claude-3-5-sonnet-20240620": 8192,  # Alternative Sonnet
+            "claude-3-opus-20240229": 4096,  # Legacy Opus
+        }
+        # Default to high limit for unknown models (they likely support 8192+)
+        return model_limits.get(model_name, 8192)
+    
+    def _get_candidate_models(requested_max_tokens: int) -> List[str]:
+        """
+        Build a fallback list of models that can handle the requested token count.
         - Start with explicit env override if provided.
         - Then try current stable/known-good models.
+        - Filter out models that can't handle the requested max_tokens.
         """
         primary = os.getenv("ANTHROPIC_MODEL")
-        candidates = [
+        all_candidates = [
             primary,
             "claude-3-5-sonnet-20241022",  # widely available, strong quality
             "claude-3-5-haiku-20241022",   # fast
-            "claude-3-haiku-20240307",     # legacy, broad availability
-            "claude-3-sonnet-20240229",    # legacy backup
+            "claude-3-5-sonnet-20240620",  # alternative sonnet version
+            "claude-3-haiku-20240307",     # legacy, broad availability (lower limit)
         ]
-        # Deduplicate while preserving order and dropping falsy
+        
+        # Filter models that can handle the requested token count
+        candidates = []
         seen = set()
-        unique = []
-        for c in candidates:
+        for c in all_candidates:
             if c and c not in seen:
                 seen.add(c)
-                unique.append(c)
-        return unique
+                model_max = _get_model_max_tokens(c)
+                if requested_max_tokens <= model_max:
+                    candidates.append(c)
+                else:
+                    try:
+                        current_app.logger.debug(f"Skipping model {c} (max {model_max} tokens) for request requiring {requested_max_tokens} tokens")
+                    except:
+                        pass
+        
+        return candidates
 
     # Convert messages to Anthropic format
     anthropic_messages = []
@@ -591,10 +616,24 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
     # Retry logic for transient errors
     import random
     max_retries = 2
-    candidate_models = _get_candidate_models()
+    candidate_models = _get_candidate_models(max_tokens)
+    
+    if not candidate_models:
+        # Calculate max supported tokens
+        test_models = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307']
+        max_supported = max(_get_model_max_tokens(m) for m in test_models)
+        raise Exception(
+            f"No Anthropic models available that support {max_tokens} output tokens. "
+            f"Maximum supported: {max_supported} tokens. "
+            f"Please reduce max_tokens or use a model that supports higher limits."
+        )
+    
     last_error = None
     
     for model in candidate_models:
+        # Cap max_tokens to model's limit
+        model_max = _get_model_max_tokens(model)
+        actual_max_tokens = min(max_tokens, model_max)
         for attempt in range(max_retries):
             try:
                 # Initialize client with just the API key (no proxies or other args)
@@ -602,7 +641,7 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
                 
                 response = client.messages.create(
                     model=model,
-                    max_tokens=max_tokens,
+                    max_tokens=actual_max_tokens,
                     system=system_prompt if system_prompt else None,
                     messages=anthropic_messages,
                 )
@@ -620,7 +659,7 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
                 
                 if is_truncated:
                     try:
-                        current_app.logger.info(f"⚠️ Response truncated at {max_tokens} tokens")
+                        current_app.logger.info(f"⚠️ Response truncated at {actual_max_tokens} tokens (requested {max_tokens}, model limit {model_max})")
                     except:
                         pass
                 
@@ -636,12 +675,17 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
                 elif "404" in error_str and "model" in error_str.lower():
                     # Model not found; try next candidate if available
                     try:
-                        current_app.logger.warning(f"Anthropic model '{model}' not found. Trying fallback if available.")
+                        current_app.logger.warning(f"Anthropic model '{model}' not found (404). Trying next fallback model if available.")
                     except:
                         pass
                     break  # move to next model
                 elif "404" in error_str:
-                    last_error = Exception(f"Anthropic API endpoint not found. This may indicate an API version issue: {str(e)}")
+                    # If it's a 404 but not model-related, it might be an endpoint issue
+                    try:
+                        current_app.logger.warning(f"Anthropic API endpoint not found (404). Trying next model if available.")
+                    except:
+                        pass
+                    break  # move to next model
                     break
                 elif "429" in error_str or "rate limit" in error_str.lower():
                     # Retry on rate limit
@@ -684,7 +728,18 @@ def call_anthropic_api(messages: List[Dict[str, str]], system_prompt: str = "", 
     # Exhausted all models
     if last_error:
         tried = ", ".join(candidate_models) if candidate_models else "none"
-        raise Exception(f"Anthropic API call failed after trying models [{tried}]: {last_error}")
+        error_msg = str(last_error)
+        # Provide more helpful error message for 404 model errors
+        if "404" in error_msg and "model" in error_msg.lower():
+            raise Exception(
+                f"Anthropic API call failed: All models returned 404 (not found). "
+                f"Tried models: [{tried}]. "
+                f"This may indicate: (1) Models are outdated/deprecated, (2) API key lacks access to these models, "
+                f"or (3) API endpoint has changed. Check your ANTHROPIC_API_KEY and ensure it has access to Claude models. "
+                f"Last error: {error_msg}"
+            )
+        else:
+            raise Exception(f"Anthropic API call failed after trying models [{tried}]: {error_msg}")
     raise Exception("Anthropic API call failed: no models available to try")
 
 
