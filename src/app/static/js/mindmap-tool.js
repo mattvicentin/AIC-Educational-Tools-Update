@@ -1391,52 +1391,77 @@
         const node = container.querySelector(`[data-node-id="${nodeId}"]`);
         if (!node) return null;
         
-        // Get the actual anchor element
+        // Get the SVG element for coordinate transformation
+        const svg = document.getElementById('mindmap-edges');
+        if (!svg) return null;
+        
+        // Get the actual anchor element if it exists
         const anchor = node.querySelector(`[data-anchor-side="${anchorSide}"]`);
-        if (!anchor) {
-            // Fallback: calculate from node position if anchor not found
+        
+        // Get bounding rects - these account for all CSS transforms
+        const elementRect = anchor ? anchor.getBoundingClientRect() : node.getBoundingClientRect();
+        
+        // Calculate the point we want to connect to
+        let viewportX, viewportY;
+        
+        if (anchor) {
+            // Use anchor center
+            viewportX = elementRect.left + elementRect.width / 2;
+            viewportY = elementRect.top + elementRect.height / 2;
+        } else {
+            // Fallback: calculate from node edges
             const nodeRect = node.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            
-            let anchorX, anchorY;
             const nodeCenterX = nodeRect.left + nodeRect.width / 2;
             const nodeCenterY = nodeRect.top + nodeRect.height / 2;
             
             switch(anchorSide) {
                 case 'left':
-                    anchorX = nodeRect.left - containerRect.left;
-                    anchorY = nodeCenterY - containerRect.top;
+                    viewportX = nodeRect.left;
+                    viewportY = nodeCenterY;
                     break;
                 case 'right':
-                    anchorX = nodeRect.right - containerRect.left;
-                    anchorY = nodeCenterY - containerRect.top;
+                    viewportX = nodeRect.right;
+                    viewportY = nodeCenterY;
                     break;
                 case 'top':
-                    anchorX = nodeCenterX - containerRect.left;
-                    anchorY = nodeRect.top - containerRect.top;
+                    viewportX = nodeCenterX;
+                    viewportY = nodeRect.top;
                     break;
                 case 'bottom':
-                    anchorX = nodeCenterX - containerRect.left;
-                    anchorY = nodeRect.bottom - containerRect.top;
+                    viewportX = nodeCenterX;
+                    viewportY = nodeRect.bottom;
                     break;
                 default:
-                    anchorX = nodeCenterX - containerRect.left;
-                    anchorY = nodeCenterY - containerRect.top;
+                    viewportX = nodeCenterX;
+                    viewportY = nodeCenterY;
             }
-            const worldPos = screenToWorld(anchorX, anchorY);
-            return { x: worldPos.x, y: worldPos.y };
         }
         
-        // Get bounding rects - these account for all transforms
-        const anchorRect = anchor.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        
-        // Calculate anchor center position relative to container (which matches SVG viewBox)
-        const anchorX = anchorRect.left + anchorRect.width / 2 - containerRect.left;
-        const anchorY = anchorRect.top + anchorRect.height / 2 - containerRect.top;
-        
-        const worldPos = screenToWorld(anchorX, anchorY);
-        return { x: worldPos.x, y: worldPos.y };
+        // Convert viewport coordinates to SVG coordinates using SVG's built-in transformation
+        // This properly handles all CSS transforms on both the SVG and the DOM elements
+        try {
+            const svgPoint = svg.createSVGPoint();
+            svgPoint.x = viewportX;
+            svgPoint.y = viewportY;
+            
+            // Get the inverse of the screen CTM to convert from screen to SVG coordinates
+            const ctm = svg.getScreenCTM();
+            if (!ctm) {
+                // Fallback to manual calculation if getScreenCTM fails
+                return screenToWorld(viewportX - container.getBoundingClientRect().left, 
+                                    viewportY - container.getBoundingClientRect().top);
+            }
+            
+            const inverseCTM = ctm.inverse();
+            const svgCoords = svgPoint.matrixTransform(inverseCTM);
+            
+            return { x: svgCoords.x, y: svgCoords.y };
+        } catch (e) {
+            // Fallback to manual calculation if SVG transformation fails
+            console.warn('SVG coordinate transformation failed, using fallback:', e);
+            const containerRect = container.getBoundingClientRect();
+            return screenToWorld(viewportX - containerRect.left, viewportY - containerRect.top);
+        }
     }
 
     /**

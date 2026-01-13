@@ -383,6 +383,14 @@ VALIDATION CHECKLIST (verify before responding):
 9. For Challenge level: There are at least 3-4 decision points (non-ending nodes) before reaching any ending
 10. Multiple endings exist (3-4 for Challenge, 2-3 for Simulation, 2 for Explanation)
 
+CRITICAL OUTPUT REQUIREMENT:
+Return ONLY valid JSON. Do NOT include any explanatory text, comments, discussion, or other content.
+- Start your response immediately with an opening brace
+- End your response with a closing brace
+- Do NOT write "I understand" or any other text before the JSON
+- Do NOT write explanations or comments after the JSON
+- Your entire response must be a single, valid JSON object
+
 Return ONLY valid JSON, no additional text before or after"""
 
     return base_prompt
@@ -555,21 +563,30 @@ def generate_narrative():
                         # Call AI
                         text_content, is_truncated = call_anthropic_api(
                             messages=[{"role": "user", "content": prompt}],
-                            system_prompt="""You are an expert at creating interactive educational narratives. 
+                            system_prompt=f"""You are an expert at creating interactive educational narratives. 
+
+CRITICAL OUTPUT REQUIREMENT:
+- You MUST return ONLY valid JSON. Do NOT include any explanatory text, comments, or discussion before or after the JSON.
+- Do NOT write "I understand the task" or any other text. Start your response immediately with {{ and end with }}.
+- Your entire response must be a single, valid JSON object matching the specified format.
 
 CRITICAL VALIDATION REQUIREMENTS:
 1. FIRST: Create ALL nodes with unique IDs before writing any choices
 2. THEN: Write choices, ensuring every "nextNode" references an EXISTING node ID from your nodes list
 3. VERIFY: Before responding, check that every "nextNode" in every choice matches an actual node "id" exactly
 4. The "startNodeId" must match one of your node IDs exactly
+5. CRITICAL: Total content must be at least {constraints['min_chars']} characters across ALL nodes (acceptable minimum: {int(constraints['min_chars'] * 0.75)})
+6. CRITICAL: You must create at least {constraints['min_nodes']} total nodes (acceptable minimum: {max(3, int(constraints['min_nodes'] * 0.7))})
+7. Each node must have at least {constraints['min_chars_per_node']} characters of content (acceptable minimum: {int(constraints['min_chars_per_node'] * 0.7)})
 
 STEP-BY-STEP PROCESS:
-Step 1: List all nodes you will create (with their IDs)
-Step 2: Create the nodes array with all nodes
-Step 3: Add choices to each node, referencing ONLY the node IDs from Step 1
-Step 4: Verify all references match before returning
+Step 1: Plan your narrative structure to meet ALL requirements (nodes, character counts, complexity)
+Step 2: Create ALL nodes with unique IDs and substantial content
+Step 3: Add choices to each node, referencing ONLY existing node IDs
+Step 4: Verify all requirements are met (character count, node count, references)
+Step 5: Return ONLY the JSON object - no other text
 
-Return ONLY valid JSON that passes these validation checks. Double-check all node references before responding.""",
+Return ONLY valid JSON that passes these validation checks. Double-check all requirements before responding.""",
                             max_tokens=8192  # Maximum supported by current Claude models (claude-3-5-sonnet/haiku)
                         )
                         
@@ -578,22 +595,43 @@ Return ONLY valid JSON that passes these validation checks. Double-check all nod
                         
                         # Extract JSON from response (handle text before/after JSON)
                         import re
-                        # Try to find JSON object using regex (more robust)
-                        json_match = re.search(r'\{[\s\S]*\}', text_content)
-                        if json_match:
-                            json_text = json_match.group(0)
-                        else:
-                            # Fallback to simple find (in case regex fails)
-                            json_start = text_content.find('{')
+                        # First, try to find the largest JSON object (handle nested structures)
+                        # Use non-greedy matching to find the first complete JSON object
+                        json_start = text_content.find('{')
+                        if json_start == -1:
+                            current_app.logger.error(f"No JSON found in response. Response length: {len(text_content)}, First 500 chars: {text_content[:500]}")
+                            raise ValueError(
+                                f"No JSON found in response. Response may be truncated or malformed. "
+                                f"Response preview: {text_content[:200]}..."
+                            )
+                        
+                        # Find the matching closing brace by counting braces
+                        brace_count = 0
+                        json_end = json_start
+                        for i in range(json_start, len(text_content)):
+                            if text_content[i] == '{':
+                                brace_count += 1
+                            elif text_content[i] == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    json_end = i + 1
+                                    break
+                        
+                        if brace_count != 0:
+                            # Unbalanced braces - try fallback to last closing brace
                             json_end = text_content.rfind('}') + 1
-                            if json_start == -1 or json_end == 0:
-                                # Log the response for debugging
-                                current_app.logger.error(f"Failed to extract JSON from response. Response length: {len(text_content)}, First 500 chars: {text_content[:500]}")
+                            if json_end == 0:
+                                current_app.logger.error(f"Unbalanced JSON braces. Response length: {len(text_content)}, First 500 chars: {text_content[:500]}")
                                 raise ValueError(
-                                    f"No JSON found in response. Response may be truncated or malformed. "
+                                    f"No valid JSON found in response. JSON structure appears incomplete. "
                                     f"Response preview: {text_content[:200]}..."
                                 )
-                            json_text = text_content[json_start:json_end]
+                        
+                        json_text = text_content[json_start:json_end]
+                        
+                        # Log if there was text before the JSON (for debugging)
+                        if json_start > 0:
+                            current_app.logger.warning(f"Found {json_start} characters of text before JSON. Extracting JSON from position {json_start}.")
                         
                         # Try to parse JSON
                         try:
@@ -660,8 +698,10 @@ Return ONLY valid JSON that passes these validation checks. Double-check all nod
                                     f"(acceptable minimum: {min_chars_per_node_threshold}). Please expand the content for this node."
                                 )
                         
-                        # Validate total character count (allow 80% of minimum as acceptable)
-                        min_chars_threshold = int(constraints['min_chars'] * 0.8)
+                        # Validate total character count (allow 75% of minimum as acceptable for Challenge, 80% for others)
+                        # Challenge mode is more lenient because it's harder to meet requirements
+                        threshold_multiplier = 0.75 if complexity == 'challenge' else 0.8
+                        min_chars_threshold = int(constraints['min_chars'] * threshold_multiplier)
                         if total_chars < min_chars_threshold:
                             raise ValueError(
                                 f"Total narrative length is {total_chars} characters, but minimum required is {constraints['min_chars']} characters "
@@ -724,18 +764,20 @@ Return ONLY valid JSON that passes these validation checks. Double-check all nod
                             # Add a retry instruction to the prompt
                             error_msg = str(e)
                             prompt += f"\n\nIMPORTANT: Your previous attempt had validation errors: {error_msg}\n"
+                            prompt += "CRITICAL: Return ONLY valid JSON. Do NOT include any text before or after the JSON object.\n"
                             prompt += "Please ensure ALL requirements are met. Follow these steps:\n"
                             prompt += f"1. Create AT LEAST {constraints['min_nodes']} total nodes\n"
                             prompt += f"2. Each node must have at least {constraints['min_chars_per_node']} characters of content\n"
-                            prompt += f"3. Total content must be at least {constraints['min_chars']} characters across all nodes\n"
-                            prompt += "4. First, list ALL node IDs you will create\n"
-                            prompt += "5. Then create the nodes array with those exact IDs\n"
+                            prompt += f"3. Total content must be at least {constraints['min_chars']} characters across all nodes (acceptable minimum: {int(constraints['min_chars'] * (0.75 if complexity == 'challenge' else 0.8))})\n"
+                            prompt += "4. First, plan ALL node IDs you will create\n"
+                            prompt += "5. Then create the nodes array with those exact IDs and substantial content\n"
                             prompt += "6. When writing choices, reference ONLY the node IDs from step 4\n"
                             prompt += "7. Double-check every 'nextNode' value matches an existing node 'id' exactly\n"
+                            prompt += "8. Start your response immediately with { and end with } - no other text\n"
                             if complexity == 'challenge':
-                                prompt += "8. For Challenge level: Ensure at least 3-4 decision points (non-ending nodes) before reaching any ending\n"
-                                prompt += "9. For Challenge level: Create at least 3-4 different endings\n"
-                                prompt += "10. For Challenge level: Make choices present conflicting goals with meaningful trade-offs"
+                                prompt += "9. For Challenge level: Ensure at least 3-4 decision points (non-ending nodes) before reaching any ending\n"
+                                prompt += "10. For Challenge level: Create at least 3-4 different endings\n"
+                                prompt += "11. For Challenge level: Make choices present conflicting goals with meaningful trade-offs"
                         else:
                             # Last attempt failed, re-raise the error
                             raise
