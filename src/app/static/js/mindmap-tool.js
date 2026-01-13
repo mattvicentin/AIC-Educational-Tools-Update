@@ -3,8 +3,32 @@
  * Manages the mind map panel, generation, and display flow
  */
 
+console.log('[Mind Map] Script loading...');
+
 (function() {
     'use strict';
+
+    console.log('[Mind Map] IIFE executing...');
+
+    // Export stub immediately to ensure it's always available
+    // This will be replaced with real functions once they're defined
+    window.mindMapTool = {
+        open: function() {
+            console.warn('[Mind Map] Tool functions not yet initialized, retrying...');
+            // Try to call the real function if it exists now
+            if (typeof openMindMapPanel === 'function') {
+                openMindMapPanel();
+            } else {
+                console.error('[Mind Map] openMindMapPanel function still not available');
+            }
+        },
+        close: function() {
+            if (typeof closeMindMapPanel === 'function') {
+                closeMindMapPanel();
+            }
+        }
+    };
+    console.log('[Mind Map] Initial stub exported', window.mindMapTool);
 
     const MINDMAP_PANEL_ID = 'mindmap-panel';
     const MINDMAP_STEPS = {
@@ -16,8 +40,8 @@
     let chatId = null;
     let tooltipElement = null;
     
-    // Edit Mode state management
-    let editMode = false;
+    // Edit Mode is always enabled (View Mode removed)
+    let editMode = true;
     let originalPositions = new Map(); // Store original ELK positions
     let customPositions = new Map(); // Store user-modified positions
     let manualConnections = []; // Store manually created connections
@@ -62,8 +86,8 @@
         }
 
         if (!chatId) {
-            console.warn('Mind Map tool: Could not determine chat ID');
-            return;
+            console.warn('Mind Map tool: Could not determine chat ID, but tool is still available');
+            // Don't return - allow initialization to continue so the tool can still be opened
         }
 
         // Setup event listeners
@@ -128,13 +152,12 @@
         if (retryBtn) retryBtn.addEventListener('click', resetMindMap);
         if (sendToChatBtn) sendToChatBtn.addEventListener('click', sendToChat);
 
-        // Mode toggle buttons
-        const viewModeBtn = document.getElementById('mindmap-view-mode-btn');
-        const editModeBtn = document.getElementById('mindmap-edit-mode-btn');
+        // Reset layout button
         const resetLayoutBtn = document.getElementById('mindmap-reset-layout-btn');
-        if (viewModeBtn) viewModeBtn.addEventListener('click', () => handleModeToggle('view'));
-        if (editModeBtn) editModeBtn.addEventListener('click', () => handleModeToggle('edit'));
         if (resetLayoutBtn) resetLayoutBtn.addEventListener('click', handleResetLayout);
+        
+        // Initialize Edit Mode features (always enabled)
+        initializeEditMode();
 
         // Error retry
         const errorRetryBtn = document.getElementById('mindmap-error-retry');
@@ -458,6 +481,8 @@
             try {
                 await renderMindMap(currentMindMap.mind_map_data);
                 showStep(MINDMAP_STEPS.DISPLAY);
+                // Initialize Edit Mode after rendering
+                initializeEditMode();
             } catch (renderError) {
                 console.error('Mind map rendering error:', renderError);
                 showError('Failed to render mind map: ' + renderError.message);
@@ -648,6 +673,7 @@
                 totalWidth += computeSubtreeWidth(child);
             });
             totalWidth += horizontalGap * (primaryBranches.length - 1);
+            // Center the primary branches horizontally around the root (x=0)
             let cursorX = -totalWidth / 2;
             primaryBranches.forEach(child => {
                 const childWidth = computeSubtreeWidth(child);
@@ -657,23 +683,8 @@
             });
         }
 
-        function expandHorizontalToFill() {
-            const bounds = computeLayoutBounds(nodePositions, nodeSizes);
-            const availableW = Math.max(1, containerWidth - (padding * 2));
-            const availableH = Math.max(1, containerHeight - (padding * 2));
-            let scale = Math.min(availableW / bounds.width, availableH / bounds.height);
-            if (!isFinite(scale) || scale <= 0) scale = 1;
-            const widthAfterScale = bounds.width * scale;
-            if (widthAfterScale <= 0) return;
-            const expand = availableW / widthAfterScale;
-            if (expand <= 1.01) return;
-            const centerX = (bounds.minX + bounds.maxX) / 2;
-            for (const [, pos] of nodePositions.entries()) {
-                pos.x = centerX + (pos.x - centerX) * expand;
-            }
-        }
-
-        expandHorizontalToFill();
+        // Removed expandHorizontalToFill() to preserve horizontal centering of primary branches
+        // The primary branches are already centered around the root (x=0)
 
         function renderTree(node, depth) {
             const pos = nodePositions.get(node.id);
@@ -1299,28 +1310,15 @@
         node.style.top = `${finalY}px`;
         node.style.transform = 'translate(-50%, -50%)';
         
-        // Add hover event listeners for tooltip (only in View Mode)
+        // Add hover event listeners for Edit Mode features
         node.addEventListener('mouseenter', (e) => {
-            if (!editMode) {
-                showTooltip(e, nodeData.explanation);
-            } else {
-                // In Edit Mode, show anchors and edit button
-                showConnectionAnchors(node);
-                showEditButton(node);
-            }
+            // Show anchors and edit button
+            showConnectionAnchors(node);
+            showEditButton(node);
         });
         node.addEventListener('mouseleave', (e) => {
-            if (!editMode) {
-                hideTooltip();
-            } else {
-                hideConnectionAnchors(node);
-                hideEditButton(node);
-            }
-        });
-        node.addEventListener('mousemove', (e) => {
-            if (!editMode) {
-                updateTooltipPosition(e);
-            }
+            hideConnectionAnchors(node);
+            hideEditButton(node);
         });
         
         // Add anchor points (hidden by default)
@@ -1345,10 +1343,10 @@
     }
 
     /**
-     * Show connection anchors on node hover (Edit Mode)
+     * Show connection anchors on node hover
      */
     function showConnectionAnchors(node) {
-        if (!editMode || isConnecting) return;
+        if (isConnecting) return;
         keepAnchorsVisible(node);
     }
 
@@ -1469,7 +1467,6 @@
      */
     function handleAnchorClick(e) {
         e.stopPropagation();
-        if (!editMode) return;
         
         const anchor = e.currentTarget;
         const nodeId = anchor.getAttribute('data-node-id');
@@ -1485,10 +1482,9 @@
     }
 
     /**
-     * Show edit button on node hover (Edit Mode)
+     * Show edit button on node hover
      */
     function showEditButton(node) {
-        if (!editMode) return;
         
         let editBtn = node.querySelector('.mindmap-edit-btn');
         if (!editBtn) {
@@ -1520,7 +1516,6 @@
      * Start connection drawing from an anchor
      */
     function startConnection(nodeId, anchorSide) {
-        if (!editMode) return;
         
         isConnecting = true;
         connectionSource = nodeId;
@@ -1747,7 +1742,7 @@
      * Delete a manual connection
      */
     function deleteConnection(connectionId) {
-        if (!editMode) return;
+        // Edit Mode is always enabled
         
         // Remove from manual connections array
         const index = manualConnections.findIndex(conn => conn.id === connectionId);
@@ -1806,7 +1801,7 @@
      * Edit node content
      */
     function editNodeContent(nodeId) {
-        if (!editMode) return;
+        // Edit Mode is always enabled
         
         const container = document.getElementById('mindmap-display-container');
         if (!container) return;
@@ -2156,6 +2151,13 @@
         resetMindMap();
     }
 
+    // Replace stub with real functions once they're defined
+    window.mindMapTool = {
+        open: openMindMapPanel,
+        close: closeMindMapPanel
+    };
+    console.log('[Mind Map] Tool functions replaced with real implementations');
+
     /**
      * Check if panel is hidden
      */
@@ -2278,56 +2280,25 @@
     }
 
     /**
-     * Handle mode toggle
+     * Initialize Edit Mode (always enabled)
      */
-    function handleModeToggle(mode) {
-        if (mode === 'view') {
-            toggleEditMode(false);
-        } else if (mode === 'edit') {
-            toggleEditMode(true);
-        }
-    }
-
-    /**
-     * Toggle Edit Mode on/off
-     */
-    function toggleEditMode(enabled) {
-        editMode = enabled;
+    function initializeEditMode() {
+        editMode = true;
         const container = document.getElementById('mindmap-display-container');
         if (!container) return;
 
-        // Update UI buttons
-        const viewModeBtn = document.getElementById('mindmap-view-mode-btn');
-        const editModeBtn = document.getElementById('mindmap-edit-mode-btn');
-        const resetLayoutBtn = document.getElementById('mindmap-reset-layout-btn');
+        // Always show edit mode styling
+        container.classList.add('mindmap-edit-mode');
         
-        if (viewModeBtn && editModeBtn) {
-            if (enabled) {
-                viewModeBtn.classList.remove('mindmap-mode-btn--active');
-                editModeBtn.classList.add('mindmap-mode-btn--active');
-                container.classList.add('mindmap-edit-mode');
-                if (resetLayoutBtn) resetLayoutBtn.style.display = 'block';
-            } else {
-                viewModeBtn.classList.add('mindmap-mode-btn--active');
-                editModeBtn.classList.remove('mindmap-mode-btn--active');
-                container.classList.remove('mindmap-edit-mode');
-                if (resetLayoutBtn) resetLayoutBtn.style.display = 'none';
-                // Cancel any ongoing connection drawing
-                cancelConnectionDrawing();
-            }
-        }
+        // Show reset layout button
+        const resetLayoutBtn = document.getElementById('mindmap-reset-layout-btn');
+        if (resetLayoutBtn) resetLayoutBtn.style.display = 'block';
 
-        // Enable/disable dragging
-        if (enabled) {
-            enableDragging();
-            enableContentEditing();
-        } else {
-            disableDragging();
-            disableContentEditing();
-            hideAllAnchors();
-        }
+        // Enable dragging and content editing
+        enableDragging();
+        enableContentEditing();
 
-        // Re-render connections to show/hide edit controls
+        // Re-render connections to show edit controls
         if (currentMindMap && currentMindMap.mind_map_data) {
             updateConnectionRendering();
         }
@@ -2501,25 +2472,21 @@
                 path.setAttribute('class', 'mindmap-connection mindmap-connection--manual');
                 path.setAttribute('data-connection-id', conn.id);
                 
-                // Add delete handler for manual connections
-                if (editMode) {
-                    path.addEventListener('contextmenu', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        deleteConnection(conn.id);
-                    });
-                    path.addEventListener('mouseenter', () => {
-                        if (editMode) {
-                            path.style.strokeWidth = '3';
-                            path.style.opacity = '0.8';
-                        }
-                    });
-                    path.addEventListener('mouseleave', () => {
-                        path.style.strokeWidth = '2';
-                        path.style.opacity = '1';
-                    });
-                    path.style.cursor = 'pointer';
-                }
+                // Add delete handler for manual connections (always enabled)
+                path.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteConnection(conn.id);
+                });
+                path.addEventListener('mouseenter', () => {
+                    path.style.strokeWidth = '3';
+                    path.style.opacity = '0.8';
+                });
+                path.addEventListener('mouseleave', () => {
+                    path.style.strokeWidth = '2';
+                    path.style.opacity = '1';
+                });
+                path.style.cursor = 'pointer';
                 
                 svg.appendChild(path);
             }
@@ -2570,7 +2537,7 @@
      * Handle node drag start
      */
     function handleNodeDragStart(e) {
-        if (!editMode) return;
+        // Edit Mode is always enabled
         if (isConnecting) return; // Don't drag while connecting
         
         const node = e.currentTarget;
@@ -2705,17 +2672,37 @@
         }
     }
 
-    // Initialize on DOM ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initMindMapTool);
+    // Export already happened earlier (right after function definitions)
+    // This is just a verification log
+    if (window.mindMapTool && typeof window.mindMapTool.open === 'function') {
+        console.log('[Mind Map] Tool verified at end of IIFE');
     } else {
-        initMindMapTool();
+        console.error('[Mind Map] Tool export missing at end of IIFE! Re-exporting...');
+        // Fallback: try to export again if it failed
+        try {
+            window.mindMapTool = {
+                open: openMindMapPanel,
+                close: closeMindMapPanel
+            };
+            console.log('[Mind Map] Tool re-exported successfully');
+        } catch (e) {
+            console.error('[Mind Map] Re-export also failed:', e);
+        }
     }
 
-    // Export for external use
-    window.mindMapTool = {
-        open: openMindMapPanel,
-        close: closeMindMapPanel
-    };
+    // Initialize on DOM ready
+    try {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMindMapTool);
+        } else {
+            // DOM already loaded, initialize immediately
+            initMindMapTool();
+        }
+    } catch (e) {
+        console.error('[Mind Map] Initialization error:', e);
+    }
 
 })();
+
+// Final verification outside IIFE
+console.log('[Mind Map] Script loaded. window.mindMapTool exists:', !!window.mindMapTool, typeof window.mindMapTool);

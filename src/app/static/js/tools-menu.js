@@ -280,7 +280,8 @@
             if (window.mindMapTool && typeof window.mindMapTool.open === 'function') {
                 window.mindMapTool.open();
             } else {
-                console.warn('Mind Map tool not available');
+                console.warn('Mind Map tool not available. window.mindMapTool:', window.mindMapTool);
+                console.warn('Available tools:', Object.keys(window).filter(k => k.toLowerCase().includes('tool')));
             }
             return;
         }
