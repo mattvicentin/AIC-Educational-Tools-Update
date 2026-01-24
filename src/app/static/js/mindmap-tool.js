@@ -516,8 +516,18 @@ console.log('[Mind Map] Script loading...');
         const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
         const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
         const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-        const padding = Math.max(paddingLeft, paddingRight, paddingTop, paddingBottom, 20);
+        // Increased padding to prevent nodes from being cut off
+        const padding = Math.max(paddingLeft, paddingRight, paddingTop, paddingBottom, 40);
         layoutPadding = padding;
+        
+        // Get size from current mind map to adjust scaling
+        const size = currentMindMap?.size || 'medium';
+        const sizeMultipliers = {
+            'small': 0.9,   // Slightly smaller for small
+            'medium': 0.95, // Almost full size for medium
+            'large': 1.0    // Full size
+        };
+        const sizeMultiplier = sizeMultipliers[size] || 0.95;
         
         // Build viewport/world layers (single transform)
         const viewport = document.createElement('div');
@@ -762,7 +772,7 @@ console.log('[Mind Map] Script loading...');
 
         // Fit world to viewport
         const bounds = computeLayoutBounds(nodePositions, nodeSizes);
-        applyWorldTransform(world, worldSvg, bounds, containerWidth, containerHeight, padding);
+        applyWorldTransform(world, worldSvg, bounds, containerWidth, containerHeight, padding, sizeMultiplier);
 
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
@@ -801,11 +811,16 @@ console.log('[Mind Map] Script loading...');
         };
     }
 
-    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding) {
-        const availableW = Math.max(1, containerWidth - (padding * 2));
-        const availableH = Math.max(1, containerHeight - (padding * 2));
+    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding, sizeMultiplier = 0.95) {
+        // Add extra margin to prevent nodes from being cut off
+        const margin = 40; // Reduced margin to allow larger display
+        const availableW = Math.max(1, containerWidth - (padding * 2) - (margin * 2));
+        const availableH = Math.max(1, containerHeight - (padding * 2) - (margin * 2));
         let scale = Math.min(availableW / bounds.width, availableH / bounds.height);
         if (!isFinite(scale) || scale <= 0) scale = 1;
+        
+        // Apply size multiplier to scale down further for small/medium sizes
+        scale = scale * sizeMultiplier;
 
         const centerX = (bounds.minX + bounds.maxX) / 2;
         const centerY = (bounds.minY + bounds.maxY) / 2;
