@@ -639,11 +639,9 @@ console.log('[Mind Map] Script loading...');
         const nodePositions = new Map();
         const nodeElements = new Map();
 
-        // Root stays at (0,0) in graph space
+        // Root will be positioned after we calculate the layout bounds
+        // We'll center it vertically based on the total layout height
         nodePositions.set('root', { x: 0, y: 0 });
-        const rootEl = createNode(root, 'root', 0, 0);
-        nodesContainer.appendChild(rootEl);
-        nodeElements.set('root', rootEl);
 
         function layoutSubtree(node, centerX, depth) {
             const y = depth * levelGap;
@@ -686,6 +684,18 @@ console.log('[Mind Map] Script loading...');
         // Removed expandHorizontalToFill() to preserve horizontal centering of primary branches
         // The primary branches are already centered around the root (x=0)
 
+        // Calculate layout bounds to determine centering (both horizontal and vertical)
+        const tempBounds = computeLayoutBounds(nodePositions, nodeSizes);
+        const layoutCenterX = (tempBounds.minX + tempBounds.maxX) / 2;
+        const layoutCenterY = (tempBounds.minY + tempBounds.maxY) / 2;
+        
+        // Shift all nodes so the layout center is at (0, 0)
+        // This ensures the layout is centered both horizontally and vertically in world space
+        for (const [nodeId, pos] of nodePositions.entries()) {
+            pos.x = pos.x - layoutCenterX;
+            pos.y = pos.y - layoutCenterY;
+        }
+
         function renderTree(node, depth) {
             const pos = nodePositions.get(node.id);
             if (!pos) return;
@@ -698,6 +708,15 @@ console.log('[Mind Map] Script loading...');
             }
         }
 
+        // Render root first
+        const rootPos = nodePositions.get('root');
+        if (rootPos) {
+            const rootEl = createNode(root, 'root', rootPos.x, rootPos.y);
+            nodesContainer.appendChild(rootEl);
+            nodeElements.set('root', rootEl);
+        }
+
+        // Then render primary branches
         primaryBranches.forEach(node => renderTree(node, 1));
 
         // Reset edit data on new render
