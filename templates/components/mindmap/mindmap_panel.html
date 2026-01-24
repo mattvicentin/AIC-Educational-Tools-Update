@@ -75,11 +75,7 @@
         
         <!-- Step 2: Mind Map Display -->
         <div id="mindmap-step-display" class="mindmap-step mindmap-step--hidden">
-            <div id="mindmap-display-container" class="mindmap-display-container">
-                <!-- Mind map will be dynamically inserted here -->
-            </div>
-            
-            <div class="mindmap-actions">
+            <div class="mindmap-actions mindmap-actions--top">
                 <button type="button" class="mindmap-btn mindmap-btn--secondary mindmap-reset-btn" id="mindmap-reset-layout-btn" style="display: none;">
                     Reset Layout
                 </button>
@@ -89,6 +85,10 @@
                 <button type="button" class="mindmap-btn mindmap-btn--primary" id="mindmap-send-to-chat-btn">
                     Send to chat
                 </button>
+            </div>
+            
+            <div id="mindmap-display-container" class="mindmap-display-container">
+                <!-- Mind map will be dynamically inserted here -->
             </div>
         </div>
         

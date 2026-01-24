@@ -468,11 +468,20 @@
 .mindmap-actions {
   display: flex;
   gap: 1rem;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid #e5e7eb;
+}
+
+.mindmap-actions--top {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: none;
+  border-bottom: none;
 }
 
 /* Tooltip */
