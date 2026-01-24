@@ -445,7 +445,6 @@
 
 .mindmap-connection--manual {
   stroke: #f59e0b;
-  stroke-dasharray: 5, 5;
   pointer-events: stroke;
   cursor: pointer;
   transition: stroke-width 0.2s ease, opacity 0.2s ease;
@@ -458,7 +457,6 @@
 
 .mindmap-connection-preview {
   stroke: #f59e0b;
-  stroke-dasharray: 5, 5;
   stroke-width: 2;
   pointer-events: none;
   z-index: 10;
@@ -807,7 +805,6 @@
 /* Manual Connections */
 .mindmap-connection--manual {
   stroke: #f59e0b;
-  stroke-dasharray: 5, 5;
   pointer-events: stroke;
   cursor: pointer;
 }
@@ -820,7 +817,6 @@
 /* Connection Preview */
 .mindmap-connection-preview {
   stroke: #f59e0b;
-  stroke-dasharray: 5, 5;
   stroke-width: 2;
   pointer-events: none;
   z-index: 10;

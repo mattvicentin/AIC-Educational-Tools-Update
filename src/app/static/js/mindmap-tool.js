@@ -1637,7 +1637,6 @@ console.log('[Mind Map] Script loading...');
         connectionPreviewLine.setAttribute('fill', 'none');
         connectionPreviewLine.setAttribute('stroke', '#f59e0b');
         connectionPreviewLine.setAttribute('stroke-width', '2');
-        connectionPreviewLine.setAttribute('stroke-dasharray', '5,5');
         svg.appendChild(connectionPreviewLine);
         
         // Add mouse move and click handlers
@@ -2561,6 +2560,11 @@ console.log('[Mind Map] Script loading...');
                 const side = targetAnchorX >= sourceAnchorX ? 1 : -1;
                 const dx = Math.max(60, Math.abs(targetAnchorX - sourceAnchorX) * 0.35);
                 
+                // Create a wrapper group for the path and delete button
+                const connectionGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                connectionGroup.setAttribute('class', 'mindmap-connection-group');
+                connectionGroup.setAttribute('data-connection-id', conn.id);
+                
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 path.setAttribute('d',
                     `M ${sourceAnchorX} ${sourceAnchorY} ` +
@@ -2571,7 +2575,6 @@ console.log('[Mind Map] Script loading...');
                 path.setAttribute('fill', 'none');
                 path.setAttribute('stroke', '#f59e0b');
                 path.setAttribute('stroke-width', '2');
-                path.setAttribute('stroke-dasharray', '5,5');
                 path.setAttribute('class', 'mindmap-connection mindmap-connection--manual');
                 path.setAttribute('data-connection-id', conn.id);
                 
@@ -2594,7 +2597,16 @@ console.log('[Mind Map] Script loading...');
                 const midX = (sourceAnchorX + targetAnchorX) / 2;
                 const midY = (sourceAnchorY + targetAnchorY) / 2;
                 
-                // Create circle background
+                // Create invisible larger hit area circle (for easier clicking)
+                const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                hitArea.setAttribute('cx', midX);
+                hitArea.setAttribute('cy', midY);
+                hitArea.setAttribute('r', '15'); // Larger hit area
+                hitArea.setAttribute('fill', 'transparent');
+                hitArea.style.cursor = 'pointer';
+                hitArea.style.pointerEvents = 'all';
+                
+                // Create circle background (visible)
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', midX);
                 circle.setAttribute('cy', midY);
@@ -2623,22 +2635,67 @@ console.log('[Mind Map] Script loading...');
                 xLine2.setAttribute('stroke-width', '2');
                 xLine2.setAttribute('stroke-linecap', 'round');
                 
+                deleteBtn.appendChild(hitArea); // Add hit area first (behind)
                 deleteBtn.appendChild(circle);
                 deleteBtn.appendChild(xLine1);
                 deleteBtn.appendChild(xLine2);
                 
-                // Show delete button on hover
-                path.addEventListener('mouseenter', () => {
+                // Helper function to show delete button
+                const showDeleteButton = () => {
                     path.style.strokeWidth = '3';
                     path.style.opacity = '0.8';
                     deleteBtn.style.opacity = '1';
                     deleteBtn.style.pointerEvents = 'auto';
-                });
-                path.addEventListener('mouseleave', () => {
+                };
+                
+                // Helper function to hide delete button
+                let hideTimeout = null;
+                const hideDeleteButton = () => {
+                    // Clear any pending hide timeout
+                    if (hideTimeout) {
+                        clearTimeout(hideTimeout);
+                        hideTimeout = null;
+                    }
                     path.style.strokeWidth = '2';
                     path.style.opacity = '1';
                     deleteBtn.style.opacity = '0';
                     deleteBtn.style.pointerEvents = 'none';
+                };
+                
+                // Show delete button when hovering over path
+                path.addEventListener('mouseenter', () => {
+                    if (hideTimeout) {
+                        clearTimeout(hideTimeout);
+                        hideTimeout = null;
+                    }
+                    showDeleteButton();
+                });
+                
+                // Hide delete button when leaving path, with delay to allow transition to button
+                path.addEventListener('mouseleave', () => {
+                    hideTimeout = setTimeout(() => {
+                        hideDeleteButton();
+                    }, 200); // Delay to allow mouse to move to button
+                });
+                
+                // Keep delete button visible when hovering over it
+                deleteBtn.addEventListener('mouseenter', (e) => {
+                    e.stopPropagation();
+                    if (hideTimeout) {
+                        clearTimeout(hideTimeout);
+                        hideTimeout = null;
+                    }
+                    showDeleteButton();
+                });
+                
+                // Hide delete button when leaving it
+                deleteBtn.addEventListener('mouseleave', (e) => {
+                    // Check if mouse is moving to the path
+                    const relatedTarget = e.relatedTarget;
+                    if (relatedTarget && path === relatedTarget) {
+                        return; // Moving to path, keep visible
+                    }
+                    hideDeleteButton();
                 });
                 
                 // Delete on click
