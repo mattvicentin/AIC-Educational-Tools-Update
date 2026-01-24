@@ -55,6 +55,8 @@ console.log('[Mind Map] Script loading...');
     let dragOffset = { x: 0, y: 0 }; // Offset for dragging
     let layoutTransform = { scale: 1, tx: 0, ty: 0 }; // World transform for layout fit
     let layoutPadding = 20; // Layout padding inside viewport
+    let lastLayoutBounds = null; // Cached bounds for post-render recentering
+    let lastLayoutSizeMultiplier = 1; // Cached size multiplier for recentering
 
     function screenToWorld(x, y) {
         const scale = layoutTransform.scale || 1;
@@ -485,6 +487,9 @@ console.log('[Mind Map] Script loading...');
                 showStep(MINDMAP_STEPS.DISPLAY);
                 // Initialize Edit Mode after rendering
                 initializeEditMode();
+                requestAnimationFrame(() => {
+                    recenterMindMapToContainer();
+                });
             } catch (renderError) {
                 console.error('Mind map rendering error:', renderError);
                 showError('Failed to render mind map: ' + renderError.message);
@@ -523,11 +528,12 @@ console.log('[Mind Map] Script loading...');
         // Get size from current mind map to adjust scaling
         const size = currentMindMap?.size || 'medium';
         const sizeMultipliers = {
-            'small': 1.0,   // Fit to container for all sizes
-            'medium': 1.0,
-            'large': 1.0
+            'small': 0.94,  // Slightly smaller for better fit
+            'medium': 0.9,
+            'large': 0.86
         };
-        const sizeMultiplier = sizeMultipliers[size] || 1.5;
+        const sizeMultiplier = sizeMultipliers[size] || 1.0;
+        lastLayoutSizeMultiplier = sizeMultiplier;
         
         // Build viewport/world layers (single transform)
         const viewport = document.createElement('div');
@@ -772,6 +778,7 @@ console.log('[Mind Map] Script loading...');
 
         // Fit world to viewport
         const bounds = computeLayoutBounds(nodePositions, nodeSizes);
+        lastLayoutBounds = bounds;
         applyWorldTransform(world, worldSvg, bounds, containerWidth, containerHeight, padding, sizeMultiplier);
 
         if (typeof lucide !== 'undefined') {
@@ -840,6 +847,29 @@ console.log('[Mind Map] Script loading...');
             svgEl.setAttribute('width', bounds.width.toString());
             svgEl.setAttribute('height', bounds.height.toString());
         }
+    }
+
+    function recenterMindMapToContainer() {
+        const container = document.getElementById('mindmap-display-container');
+        if (!container || !lastLayoutBounds) return;
+
+        const containerWidth = container.offsetWidth;
+        const containerHeight = container.offsetHeight;
+        if (!containerWidth || !containerHeight) return;
+
+        const world = container.querySelector('#mindmap-world');
+        if (!world) return;
+
+        const svg = container.querySelector('#mindmap-edges');
+        const computedStyle = getComputedStyle(container);
+        const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+        const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+        const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+        const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+        const padding = Math.max(paddingLeft, paddingRight, paddingTop, paddingBottom, 24);
+        layoutPadding = padding;
+
+        applyWorldTransform(world, svg, lastLayoutBounds, containerWidth, containerHeight, padding, lastLayoutSizeMultiplier);
     }
 
     /**
