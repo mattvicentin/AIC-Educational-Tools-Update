@@ -149,8 +149,10 @@ console.log('[Mind Map] Script loading...');
         // Display actions
         const retryBtn = document.getElementById('mindmap-retry-btn');
         const sendToChatBtn = document.getElementById('mindmap-send-to-chat-btn');
+        const exportBtn = document.getElementById('mindmap-export-btn');
         if (retryBtn) retryBtn.addEventListener('click', resetMindMap);
         if (sendToChatBtn) sendToChatBtn.addEventListener('click', sendToChat);
+        if (exportBtn) exportBtn.addEventListener('click', exportMindMap);
 
         // Reset layout button
         const resetLayoutBtn = document.getElementById('mindmap-reset-layout-btn');
@@ -2194,6 +2196,113 @@ console.log('[Mind Map] Script loading...');
             console.error('Failed to send mind map to chat:', error);
             // Don't show alert, just log the error
         }
+    }
+
+    /**
+     * Export mind map as image
+     */
+    async function exportMindMap() {
+        if (!currentMindMap) {
+            console.error('Cannot export: no mind map available');
+            alert('No mind map to export. Please generate a mind map first.');
+            return;
+        }
+
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) {
+            console.error('Cannot export: container not found');
+            return;
+        }
+
+        try {
+            // Check if html2canvas is available
+            if (typeof html2canvas === 'undefined') {
+                // Try to load html2canvas dynamically
+                await loadHtml2Canvas();
+            }
+
+            if (typeof html2canvas === 'undefined') {
+                alert('Export functionality requires html2canvas library. Please contact support.');
+                return;
+            }
+
+            // Show loading indicator
+            const exportBtn = document.getElementById('mindmap-export-btn');
+            const originalText = exportBtn ? exportBtn.textContent : 'Export';
+            if (exportBtn) {
+                exportBtn.disabled = true;
+                exportBtn.textContent = 'Exporting...';
+            }
+
+            // Capture the container
+            const canvas = await html2canvas(container, {
+                backgroundColor: '#ffffff',
+                scale: 2, // Higher resolution for better quality
+                logging: false,
+                useCORS: true,
+                allowTaint: true,
+                width: container.scrollWidth,
+                height: container.scrollHeight
+            });
+            
+            // Convert to blob and download
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `mindmap-${Date.now()}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }
+                
+                // Restore button
+                if (exportBtn) {
+                    exportBtn.disabled = false;
+                    exportBtn.textContent = originalText;
+                }
+            }, 'image/png', 0.95); // High quality
+
+        } catch (error) {
+            console.error('Failed to export mind map:', error);
+            alert('Failed to export mind map. Please try again.');
+            
+            // Restore button
+            const exportBtn = document.getElementById('mindmap-export-btn');
+            if (exportBtn) {
+                exportBtn.disabled = false;
+                exportBtn.textContent = 'Export';
+            }
+        }
+    }
+
+    /**
+     * Load html2canvas library dynamically
+     */
+    function loadHtml2Canvas() {
+        return new Promise((resolve, reject) => {
+            // Check if already loaded
+            if (typeof html2canvas !== 'undefined') {
+                resolve();
+                return;
+            }
+
+            // Try to load from unpkg.com (allowed in CSP)
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
+            script.onload = resolve;
+            script.onerror = () => {
+                // Fallback: try alternative CDN
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                fallbackScript.onload = resolve;
+                fallbackScript.onerror = reject;
+                document.head.appendChild(fallbackScript);
+            };
+            document.head.appendChild(script);
+        });
     }
 
     /**
