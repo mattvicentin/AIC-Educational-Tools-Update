@@ -1334,10 +1334,24 @@ console.log('[Mind Map] Script loading...');
             // Show anchors and delete button
             showConnectionAnchors(node);
             showDeleteButton(node);
+            // Show tooltip with explanation if available
+            const explanation = node.dataset.explanation;
+            if (explanation) {
+                showTooltip(e, explanation);
+            }
         });
         node.addEventListener('mouseleave', (e) => {
             hideConnectionAnchors(node);
             hideDeleteButton(node);
+            // Hide tooltip
+            hideTooltip();
+        });
+        // Update tooltip position on mouse move
+        node.addEventListener('mousemove', (e) => {
+            const explanation = node.dataset.explanation;
+            if (explanation && tooltipElement && !tooltipElement.classList.contains('hidden')) {
+                updateTooltipPosition(e);
+            }
         });
         
         // Add anchor points (hidden by default)
