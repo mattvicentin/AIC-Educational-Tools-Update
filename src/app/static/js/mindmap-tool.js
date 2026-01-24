@@ -523,11 +523,11 @@ console.log('[Mind Map] Script loading...');
         // Get size from current mind map to adjust scaling
         const size = currentMindMap?.size || 'medium';
         const sizeMultipliers = {
-            'small': 0.9,   // Slightly smaller for small
-            'medium': 0.95, // Almost full size for medium
-            'large': 1.0    // Full size
+            'small': 1.4,   // 40% larger than fit for small
+            'medium': 1.5,  // 50% larger than fit for medium
+            'large': 1.6    // 60% larger than fit for large
         };
-        const sizeMultiplier = sizeMultipliers[size] || 0.95;
+        const sizeMultiplier = sizeMultipliers[size] || 1.5;
         
         // Build viewport/world layers (single transform)
         const viewport = document.createElement('div');
@@ -811,21 +811,60 @@ console.log('[Mind Map] Script loading...');
         };
     }
 
-    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding, sizeMultiplier = 0.95) {
-        // Add extra margin to prevent nodes from being cut off
-        const margin = 40; // Reduced margin to allow larger display
-        const availableW = Math.max(1, containerWidth - (padding * 2) - (margin * 2));
-        const availableH = Math.max(1, containerHeight - (padding * 2) - (margin * 2));
+    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding, sizeMultiplier = 1.5) {
+        // Calculate scale to fit, then apply multiplier
+        const availableW = Math.max(1, containerWidth - (padding * 2));
+        const availableH = Math.max(1, containerHeight - (padding * 2));
         let scale = Math.min(availableW / bounds.width, availableH / bounds.height);
         if (!isFinite(scale) || scale <= 0) scale = 1;
         
-        // Apply size multiplier to scale down further for small/medium sizes
+        // Apply size multiplier (can be > 1.0 to fill more space)
         scale = scale * sizeMultiplier;
 
+        // Calculate center of bounds
         const centerX = (bounds.minX + bounds.maxX) / 2;
         const centerY = (bounds.minY + bounds.maxY) / 2;
-        const tx = (containerWidth / 2) - (centerX * scale);
-        const ty = (containerHeight / 2) - (centerY * scale);
+        
+        // Calculate translation to center the scaled layout
+        // Account for the scaled center point to ensure proper centering
+        const scaledCenterX = centerX * scale;
+        const scaledCenterY = centerY * scale;
+        
+        // Shift significantly more to the right by offsetting the center calculation
+        // Use a larger offset to move the map more to the right
+        const rightwardOffset = containerWidth * 0.15; // 15% shift to the right
+        let tx = (containerWidth / 2) - scaledCenterX + rightwardOffset;
+        let ty = (containerHeight / 2) - scaledCenterY;
+        
+        // Ensure we don't shift too far left (prevent cutoff)
+        // Calculate the leftmost point after scaling
+        const scaledLeft = (bounds.minX * scale) + tx;
+        const scaledRight = (bounds.maxX * scale) + tx;
+        const scaledTop = (bounds.minY * scale) + ty;
+        const scaledBottom = (bounds.maxY * scale) + ty;
+        
+        // Adjust translation if nodes would be cut off
+        const minMargin = 20; // Minimum margin from edges
+        if (scaledLeft < minMargin) {
+            // Shift right to prevent left cutoff
+            const adjustment = minMargin - scaledLeft;
+            tx += adjustment;
+        }
+        if (scaledRight > containerWidth - minMargin) {
+            // Shift left to prevent right cutoff
+            const adjustment = (containerWidth - minMargin) - scaledRight;
+            tx += adjustment;
+        }
+        if (scaledTop < minMargin) {
+            // Shift down to prevent top cutoff
+            const adjustment = minMargin - scaledTop;
+            ty += adjustment;
+        }
+        if (scaledBottom > containerHeight - minMargin) {
+            // Shift up to prevent bottom cutoff
+            const adjustment = (containerHeight - minMargin) - scaledBottom;
+            ty += adjustment;
+        }
 
         worldEl.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
         layoutTransform = { scale, tx, ty };
