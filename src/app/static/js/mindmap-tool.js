@@ -57,6 +57,7 @@ console.log('[Mind Map] Script loading...');
     let layoutPadding = 20; // Layout padding inside viewport
     let lastLayoutBounds = null; // Cached bounds for post-render recentering
     let lastLayoutSizeMultiplier = 1; // Cached size multiplier for recentering
+    let lastLayoutMaxScale = null; // Cached max scale for recentering
 
     function screenToWorld(x, y) {
         const scale = layoutTransform.scale || 1;
@@ -528,12 +529,17 @@ console.log('[Mind Map] Script loading...');
         // Get size from current mind map to adjust scaling
         const size = currentMindMap?.size || 'medium';
         const sizeMultipliers = {
-            'small': 0.94,  // Slightly smaller for better fit
+            'small': 0.86,  // Match large scale fit
             'medium': 0.9,
             'large': 0.86
         };
+        const sizeMaxScales = {
+            'small': 1.0
+        };
         const sizeMultiplier = sizeMultipliers[size] || 1.0;
+        const maxScale = sizeMaxScales[size];
         lastLayoutSizeMultiplier = sizeMultiplier;
+        lastLayoutMaxScale = maxScale;
         
         // Build viewport/world layers (single transform)
         const viewport = document.createElement('div');
@@ -779,7 +785,7 @@ console.log('[Mind Map] Script loading...');
         // Fit world to viewport
         const bounds = computeLayoutBounds(nodePositions, nodeSizes);
         lastLayoutBounds = bounds;
-        applyWorldTransform(world, worldSvg, bounds, containerWidth, containerHeight, padding, sizeMultiplier);
+        applyWorldTransform(world, worldSvg, bounds, containerWidth, containerHeight, padding, sizeMultiplier, maxScale);
 
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
@@ -818,7 +824,7 @@ console.log('[Mind Map] Script loading...');
         };
     }
 
-    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding, sizeMultiplier = 1.0) {
+    function applyWorldTransform(worldEl, svgEl, bounds, containerWidth, containerHeight, padding, sizeMultiplier = 1.0, maxScale = null) {
         // Calculate scale to fit, and never exceed that fit
         const availableW = Math.max(1, containerWidth - (padding * 2));
         const availableH = Math.max(1, containerHeight - (padding * 2));
@@ -829,6 +835,9 @@ console.log('[Mind Map] Script loading...');
             ? Math.min(sizeMultiplier, 1)
             : 1;
         scale *= safeMultiplier;
+        if (Number.isFinite(maxScale) && maxScale > 0) {
+            scale = Math.min(scale, maxScale);
+        }
 
         // Center the scaled bounds within the container
         const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -869,7 +878,7 @@ console.log('[Mind Map] Script loading...');
         const padding = Math.max(paddingLeft, paddingRight, paddingTop, paddingBottom, 24);
         layoutPadding = padding;
 
-        applyWorldTransform(world, svg, lastLayoutBounds, containerWidth, containerHeight, padding, lastLayoutSizeMultiplier);
+        applyWorldTransform(world, svg, lastLayoutBounds, containerWidth, containerHeight, padding, lastLayoutSizeMultiplier, lastLayoutMaxScale);
     }
 
     /**
