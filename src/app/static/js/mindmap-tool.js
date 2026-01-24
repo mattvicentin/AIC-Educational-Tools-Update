@@ -1331,13 +1331,13 @@ console.log('[Mind Map] Script loading...');
         
         // Add hover event listeners for Edit Mode features
         node.addEventListener('mouseenter', (e) => {
-            // Show anchors and edit button
+            // Show anchors and delete button
             showConnectionAnchors(node);
-            showEditButton(node);
+            showDeleteButton(node);
         });
         node.addEventListener('mouseleave', (e) => {
             hideConnectionAnchors(node);
-            hideEditButton(node);
+            hideDeleteButton(node);
         });
         
         // Add anchor points (hidden by default)
@@ -1528,6 +1528,84 @@ console.log('[Mind Map] Script loading...');
         const editBtn = node.querySelector('.mindmap-edit-btn');
         if (editBtn) {
             editBtn.classList.remove('mindmap-edit-btn--visible');
+        }
+    }
+
+    /**
+     * Show delete button on node hover
+     */
+    function showDeleteButton(node) {
+        // Don't allow deleting the root node
+        const nodeId = node.getAttribute('data-node-id');
+        if (nodeId === 'root') return;
+        
+        let deleteBtn = node.querySelector('.mindmap-delete-btn');
+        if (!deleteBtn) {
+            deleteBtn = document.createElement('button');
+            deleteBtn.className = 'mindmap-delete-btn';
+            deleteBtn.setAttribute('aria-label', 'Delete node');
+            deleteBtn.innerHTML = '<i data-lucide="x" class="w-4 h-4"></i>';
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const nodeId = node.getAttribute('data-node-id');
+                deleteNode(nodeId);
+            });
+            node.appendChild(deleteBtn);
+        }
+        deleteBtn.classList.add('mindmap-delete-btn--visible');
+    }
+
+    /**
+     * Hide delete button
+     */
+    function hideDeleteButton(node) {
+        const deleteBtn = node.querySelector('.mindmap-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.classList.remove('mindmap-delete-btn--visible');
+        }
+    }
+
+    /**
+     * Delete a node
+     */
+    function deleteNode(nodeId) {
+        if (nodeId === 'root') {
+            alert('Cannot delete the root node');
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to delete this node? This will also remove all connections to it.')) {
+            return;
+        }
+        
+        const container = document.getElementById('mindmap-display-container');
+        if (!container) return;
+        
+        // Remove node from DOM
+        const node = container.querySelector(`[data-node-id="${nodeId}"]`);
+        if (node) {
+            node.remove();
+        }
+        
+        // Remove all connections involving this node
+        manualConnections = manualConnections.filter(conn => 
+            conn.source !== nodeId && conn.target !== nodeId
+        );
+        
+        // Remove from custom positions and content edits
+        customPositions.delete(nodeId);
+        contentEdits.delete(nodeId);
+        originalPositions.delete(nodeId);
+        
+        // Re-render connections to remove deleted ones
+        const svg = container.querySelector('#mindmap-edges');
+        if (svg && currentMindMap && currentMindMap.mind_map_data) {
+            updateConnectionRendering();
+        }
+        
+        // Re-initialize Lucide icons for any remaining buttons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
         }
     }
 
@@ -1774,9 +1852,15 @@ console.log('[Mind Map] Script loading...');
                 const svg = container.querySelector('#mindmap-edges') || 
                            container.querySelector('.mindmap-visualization');
                 if (svg) {
+                    // Remove the path
                     const path = svg.querySelector(`[data-connection-id="${connectionId}"]`);
                     if (path) {
                         path.remove();
+                    }
+                    // Remove the delete button
+                    const deleteBtn = svg.querySelector(`.mindmap-connection-delete[data-connection-id="${connectionId}"]`);
+                    if (deleteBtn) {
+                        deleteBtn.remove();
                     }
                 }
             }
@@ -2497,17 +2581,77 @@ console.log('[Mind Map] Script loading...');
                     e.stopPropagation();
                     deleteConnection(conn.id);
                 });
+                
+                // Create delete button for connection
+                const deleteBtn = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                deleteBtn.setAttribute('class', 'mindmap-connection-delete');
+                deleteBtn.setAttribute('data-connection-id', conn.id);
+                deleteBtn.style.opacity = '0';
+                deleteBtn.style.pointerEvents = 'none';
+                deleteBtn.style.transition = 'opacity 0.2s ease';
+                
+                // Calculate button position (middle of the path)
+                const midX = (sourceAnchorX + targetAnchorX) / 2;
+                const midY = (sourceAnchorY + targetAnchorY) / 2;
+                
+                // Create circle background
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', midX);
+                circle.setAttribute('cy', midY);
+                circle.setAttribute('r', '10');
+                circle.setAttribute('fill', '#ef4444');
+                circle.setAttribute('stroke', 'white');
+                circle.setAttribute('stroke-width', '2');
+                circle.style.cursor = 'pointer';
+                
+                // Create X icon
+                const xLine1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                xLine1.setAttribute('x1', midX - 4);
+                xLine1.setAttribute('y1', midY - 4);
+                xLine1.setAttribute('x2', midX + 4);
+                xLine1.setAttribute('y2', midY + 4);
+                xLine1.setAttribute('stroke', 'white');
+                xLine1.setAttribute('stroke-width', '2');
+                xLine1.setAttribute('stroke-linecap', 'round');
+                
+                const xLine2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                xLine2.setAttribute('x1', midX - 4);
+                xLine2.setAttribute('y1', midY + 4);
+                xLine2.setAttribute('x2', midX + 4);
+                xLine2.setAttribute('y2', midY - 4);
+                xLine2.setAttribute('stroke', 'white');
+                xLine2.setAttribute('stroke-width', '2');
+                xLine2.setAttribute('stroke-linecap', 'round');
+                
+                deleteBtn.appendChild(circle);
+                deleteBtn.appendChild(xLine1);
+                deleteBtn.appendChild(xLine2);
+                
+                // Show delete button on hover
                 path.addEventListener('mouseenter', () => {
                     path.style.strokeWidth = '3';
                     path.style.opacity = '0.8';
+                    deleteBtn.style.opacity = '1';
+                    deleteBtn.style.pointerEvents = 'auto';
                 });
                 path.addEventListener('mouseleave', () => {
                     path.style.strokeWidth = '2';
                     path.style.opacity = '1';
+                    deleteBtn.style.opacity = '0';
+                    deleteBtn.style.pointerEvents = 'none';
                 });
+                
+                // Delete on click
+                deleteBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteConnection(conn.id);
+                });
+                
                 path.style.cursor = 'pointer';
                 
                 svg.appendChild(path);
+                svg.appendChild(deleteBtn);
             }
         });
     }
@@ -2661,9 +2805,11 @@ console.log('[Mind Map] Script loading...');
                    container.querySelector('.mindmap-visualization');
         if (!svg) return;
         
-        // Remove and re-render all connections
+        // Remove and re-render all connections and their delete buttons
         const paths = svg.querySelectorAll('.mindmap-connection');
         paths.forEach(path => path.remove());
+        const deleteButtons = svg.querySelectorAll('.mindmap-connection-delete');
+        deleteButtons.forEach(btn => btn.remove());
         
         if (currentMindMap && currentMindMap.mind_map_data) {
             renderAllConnections(svg, currentMindMap.mind_map_data);
@@ -2681,9 +2827,11 @@ console.log('[Mind Map] Script loading...');
                    container.querySelector('.mindmap-visualization');
         if (!svg) return;
 
-        // Remove all connections and re-render
+        // Remove all connections and their delete buttons, then re-render
         const paths = svg.querySelectorAll('.mindmap-connection');
         paths.forEach(path => path.remove());
+        const deleteButtons = svg.querySelectorAll('.mindmap-connection-delete');
+        deleteButtons.forEach(btn => btn.remove());
 
         // Re-render connections
         if (currentMindMap && currentMindMap.mind_map_data) {

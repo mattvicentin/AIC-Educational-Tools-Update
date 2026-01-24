@@ -724,14 +724,19 @@
   transform: translateX(-50%) scale(1);
 }
 
-/* Edit Button */
+/* Edit Button - Hidden (editing still works via double-click) */
 .mindmap-edit-btn {
+  display: none !important;
+}
+
+/* Delete Button */
+.mindmap-delete-btn {
   position: absolute;
   top: -8px;
-  right: -8px;
+  left: -8px;
   width: 24px;
   height: 24px;
-  background: #3b82f6;
+  background: #ef4444;
   border: 2px solid white;
   border-radius: 50%;
   color: white;
@@ -746,19 +751,28 @@
   padding: 0;
 }
 
-.mindmap-edit-btn--visible {
+.mindmap-delete-btn--visible {
   opacity: 1;
   pointer-events: auto;
 }
 
-.mindmap-edit-btn:hover {
-  background: #2563eb;
+.mindmap-delete-btn:hover {
+  background: #dc2626;
   transform: scale(1.1);
 }
 
-.mindmap-edit-btn i {
+.mindmap-delete-btn i {
   width: 12px;
   height: 12px;
+}
+
+/* Connection Delete Button */
+.mindmap-connection-delete {
+  cursor: pointer;
+}
+
+.mindmap-connection-delete circle:hover {
+  fill: #dc2626;
 }
 
 /* Node Editor */
