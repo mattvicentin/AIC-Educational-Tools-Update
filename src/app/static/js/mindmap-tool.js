@@ -2297,7 +2297,54 @@ console.log('[Mind Map] Script loading...');
                 useCORS: true,
                 allowTaint: true,
                 width: container.scrollWidth,
-                height: container.scrollHeight
+                height: container.scrollHeight,
+                onclone: (doc) => {
+                    const clonedContainer = doc.getElementById('mindmap-display-container');
+                    if (!clonedContainer) return;
+
+                    const originalSvg = clonedContainer.querySelector('#mindmap-edges');
+                    if (originalSvg) {
+                        originalSvg.style.display = 'none';
+                    }
+
+                    const containerWidth = clonedContainer.offsetWidth || container.clientWidth;
+                    const containerHeight = clonedContainer.offsetHeight || container.clientHeight;
+
+                    const exportSvg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    exportSvg.setAttribute('id', 'mindmap-edges-export');
+                    exportSvg.style.position = 'absolute';
+                    exportSvg.style.left = '0';
+                    exportSvg.style.top = '0';
+                    exportSvg.style.width = `${containerWidth}px`;
+                    exportSvg.style.height = `${containerHeight}px`;
+                    exportSvg.style.pointerEvents = 'none';
+                    exportSvg.style.zIndex = '0';
+                    exportSvg.style.overflow = 'visible';
+                    exportSvg.setAttribute('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
+                    exportSvg.setAttribute('width', containerWidth.toString());
+                    exportSvg.setAttribute('height', containerHeight.toString());
+
+                    // Insert SVG behind nodes to guarantee stacking order
+                    const viewport = clonedContainer.querySelector('#mindmap-viewport');
+                    if (viewport) {
+                        clonedContainer.insertBefore(exportSvg, viewport);
+                        viewport.style.position = 'absolute';
+                        viewport.style.left = '0';
+                        viewport.style.top = '0';
+                        viewport.style.zIndex = '1';
+                    } else {
+                        clonedContainer.insertBefore(exportSvg, clonedContainer.firstChild);
+                    }
+
+                    renderExportConnections(clonedContainer, exportSvg);
+
+                    // Hide editing affordances for export
+                    clonedContainer.querySelectorAll(
+                        '.mindmap-anchor, .mindmap-edit-btn, .mindmap-delete-btn, .mindmap-connection-delete'
+                    ).forEach(el => {
+                        el.style.display = 'none';
+                    });
+                }
             });
             
             // Convert to blob and download
@@ -2306,7 +2353,7 @@ console.log('[Mind Map] Script loading...');
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
-                    link.download = `mindmap-${Date.now()}.png`;
+                    link.download = `mindmap-${Date.now()}.jpg`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -2318,7 +2365,7 @@ console.log('[Mind Map] Script loading...');
                     exportBtn.disabled = false;
                     exportBtn.textContent = originalText;
                 }
-            }, 'image/png', 0.95); // High quality
+            }, 'image/jpeg', 0.92); // High quality
 
         } catch (error) {
             console.error('Failed to export mind map:', error);
@@ -2331,6 +2378,79 @@ console.log('[Mind Map] Script loading...');
                 exportBtn.textContent = 'Export';
             }
         }
+    }
+
+    function renderExportConnections(containerEl, svgEl) {
+        if (!svgEl || !containerEl) return;
+
+        manualConnections.forEach(conn => {
+            const sourceNode = containerEl.querySelector(`[data-node-id="${conn.source}"]`);
+            const targetNode = containerEl.querySelector(`[data-node-id="${conn.target}"]`);
+            if (!sourceNode || !targetNode) return;
+
+            const sourceAnchor = getExportAnchorPosition(containerEl, sourceNode, conn.sourceAnchor);
+            const targetAnchor = getExportAnchorPosition(containerEl, targetNode, conn.targetAnchor);
+            if (!sourceAnchor || !targetAnchor) return;
+
+            const side = targetAnchor.x >= sourceAnchor.x ? 1 : -1;
+            const dx = Math.max(60, Math.abs(targetAnchor.x - sourceAnchor.x) * 0.35);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d',
+                `M ${sourceAnchor.x} ${sourceAnchor.y} ` +
+                `C ${sourceAnchor.x + dx * side} ${sourceAnchor.y}, ` +
+                `${targetAnchor.x - dx * side} ${targetAnchor.y}, ` +
+                `${targetAnchor.x} ${targetAnchor.y}`
+            );
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#f59e0b');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('class', 'mindmap-connection mindmap-connection--manual');
+            svgEl.appendChild(path);
+        });
+    }
+
+    function getExportAnchorPosition(containerEl, node, anchorSide) {
+        const containerRect = containerEl.getBoundingClientRect();
+        const anchor = node.querySelector(`[data-anchor-side="${anchorSide}"]`);
+        const nodeRect = node.getBoundingClientRect();
+
+        let viewportX;
+        let viewportY;
+
+        if (anchor) {
+            const anchorRect = anchor.getBoundingClientRect();
+            viewportX = anchorRect.left + anchorRect.width / 2;
+            viewportY = anchorRect.top + anchorRect.height / 2;
+        } else {
+            const nodeCenterX = nodeRect.left + nodeRect.width / 2;
+            const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+            switch (anchorSide) {
+                case 'left':
+                    viewportX = nodeRect.left;
+                    viewportY = nodeCenterY;
+                    break;
+                case 'right':
+                    viewportX = nodeRect.right;
+                    viewportY = nodeCenterY;
+                    break;
+                case 'top':
+                    viewportX = nodeCenterX;
+                    viewportY = nodeRect.top;
+                    break;
+                case 'bottom':
+                    viewportX = nodeCenterX;
+                    viewportY = nodeRect.bottom;
+                    break;
+                default:
+                    viewportX = nodeCenterX;
+                    viewportY = nodeCenterY;
+            }
+        }
+
+        return {
+            x: viewportX - containerRect.left,
+            y: viewportY - containerRect.top
+        };
     }
 
     /**
