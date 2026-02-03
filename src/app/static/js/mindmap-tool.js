@@ -1436,6 +1436,10 @@ console.log('[Mind Map] Script loading...');
             anchor.dataset.anchorSide = side;
             anchor.dataset.nodeId = node.getAttribute('data-node-id');
             anchor.setAttribute('aria-label', `Connect from ${side} side`);
+            anchor.addEventListener('mousedown', (e) => {
+                // Prevent node dragging when starting a connection
+                e.stopPropagation();
+            });
             node.appendChild(anchor);
         });
     }
@@ -2933,6 +2937,7 @@ console.log('[Mind Map] Script loading...');
     function handleNodeDragStart(e) {
         // Edit Mode is always enabled
         if (isConnecting) return; // Don't drag while connecting
+        if (e.target.closest('.mindmap-anchor')) return;
         
         const node = e.currentTarget;
         const nodeId = node.getAttribute('data-node-id');
