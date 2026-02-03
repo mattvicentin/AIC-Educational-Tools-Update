@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Test which Anthropic models are available."""
 
+# TODO: verify usage; consider moving this script into scripts/ or removing if unused.
+
 from anthropic import Anthropic
 import os
 from dotenv import load_dotenv
@@ -42,4 +44,3 @@ for model in models_to_test:
 print(f"\n✅ Found {len(working_models)} working model(s)")
 if working_models:
     print(f"Recommended: {working_models[0]}")
-

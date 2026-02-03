@@ -3,6 +3,8 @@
 Quick test script to verify AI (Anthropic Claude) integration is working.
 """
 
+# TODO: verify usage; consider moving this script into scripts/ or removing if unused.
+
 import os
 import sys
 from dotenv import load_dotenv
@@ -166,4 +168,3 @@ if __name__ == "__main__":
     else:
         print("\n❌ AI integration test failed. Please check your API key and try again.")
         sys.exit(1)
-

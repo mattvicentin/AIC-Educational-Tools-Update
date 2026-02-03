@@ -5,11 +5,6 @@
 
 (function() {
     'use strict';
-    
-    // #region agent log
-    console.error('[DEBUG] Flashcards tool IIFE STARTED');
-    fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'flashcards-tool.js:9',message:'IIFE execution started',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});
-    // #endregion
     console.log('Flashcards tool script loading...');
 
     const FLASHCARDS_PANEL_ID = 'flashcards-panel';
@@ -961,19 +956,10 @@
     }
 
     // Export for external use
-    // Export for external use
-    // #region agent log
-    console.error('[DEBUG] About to export flashcardsTool, openFlashcardsPanel type:', typeof openFlashcardsPanel);
-    fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'flashcards-tool.js:947',message:'About to export flashcardsTool',data:{openFlashcardsPanelExists:typeof openFlashcardsPanel,closeFlashcardsPanelExists:typeof closeFlashcardsPanel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});
-    // #endregion
     window.flashcardsTool = {
         open: openFlashcardsPanel,
         close: closeFlashcardsPanel
     };
-    // #region agent log
-    console.error('[DEBUG] flashcardsTool exported, exists:', !!window.flashcardsTool);
-    fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'flashcards-tool.js:952',message:'flashcardsTool exported',data:{flashcardsToolExists:!!window.flashcardsTool,hasOpen:!!window.flashcardsTool?.open,hasClose:!!window.flashcardsTool?.close},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});
-    // #endregion
     console.log('Flashcards tool exported:', window.flashcardsTool);
 
 })();

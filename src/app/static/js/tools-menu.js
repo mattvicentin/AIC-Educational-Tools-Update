@@ -263,10 +263,6 @@
         
         // Handle flashcards tool
         if (tool === 'flashcards') {
-            // #region agent log
-            console.error('[DEBUG] Checking flashcardsTool, exists:',!!window.flashcardsTool,'type:',typeof window.flashcardsTool);
-            fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tools-menu.js:265',message:'Checking flashcardsTool availability',data:{flashcardsToolExists:!!window.flashcardsTool,flashcardsToolType:typeof window.flashcardsTool,hasOpen:!!window.flashcardsTool?.open,openType:typeof window.flashcardsTool?.open},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});
-            // #endregion
             if (window.flashcardsTool && typeof window.flashcardsTool.open === 'function') {
                 window.flashcardsTool.open();
             } else {
@@ -301,10 +297,6 @@
     }
 
     // Initialize on DOM ready
-    // #region agent log
-    console.error('[DEBUG] tools-menu.js initializing, flashcardsTool exists:',!!window.flashcardsTool);
-    fetch('http://127.0.0.1:7242/ingest/08dfd7f6-3013-4e1c-b3fe-d590be4d1bee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'tools-menu.js:280',message:'tools-menu.js initializing',data:{readyState:document.readyState,flashcardsToolExists:!!window.flashcardsTool,quizToolExists:!!window.quizTool},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch((e)=>{console.error('[DEBUG] Fetch failed:',e);});
-    // #endregion
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initToolsMenu);
     } else {

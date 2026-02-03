@@ -652,6 +652,7 @@ Return ONLY valid JSON that passes these validation checks. Double-check all req
                         
                         # Validate nodes - first pass: collect all node IDs
                         node_ids = set()
+                        ending_node_ids = set()
                         for node in narrative_data['nodes']:
                             if 'id' not in node:
                                 raise ValueError("Node missing 'id' field")
@@ -663,6 +664,8 @@ Return ONLY valid JSON that passes these validation checks. Double-check all req
                                 raise ValueError(f"Node {node.get('id')} missing 'isEnding' field")
                             
                             node_ids.add(node['id'])
+                            if node.get('isEnding'):
+                                ending_node_ids.add(node['id'])
                         
                         # Verify start node exists
                         start_node_exists = narrative_data['startNodeId'] in node_ids
@@ -734,6 +737,17 @@ Return ONLY valid JSON that passes these validation checks. Double-check all req
                                 )
                         
                         # Second pass: validate choices and their references
+                        def pick_fallback_node_id(current_node_id: str) -> str:
+                            # Prefer non-ending nodes to keep the narrative moving
+                            candidates = [n for n in node_ids if n != current_node_id and n not in ending_node_ids]
+                            if not candidates:
+                                candidates = [n for n in node_ids if n != current_node_id]
+                            if not candidates:
+                                return narrative_data['startNodeId']
+                            if narrative_data['startNodeId'] in candidates:
+                                return narrative_data['startNodeId']
+                            return sorted(candidates)[0]
+
                         for node in narrative_data['nodes']:
                             # Validate choices for non-ending nodes
                             if not node.get('isEnding'):
@@ -747,12 +761,22 @@ Return ONLY valid JSON that passes these validation checks. Double-check all req
                                         raise ValueError(f"Invalid choice structure in node {node['id']}")
                                     # Now validate that nextNode exists (all node IDs are collected)
                                     if choice['nextNode'] not in node_ids:
-                                        available_nodes_str = ', '.join([f"'{n}'" for n in sorted(node_ids)])
-                                        raise ValueError(
-                                            f"Choice in node '{node['id']}' references non-existent node '{choice['nextNode']}'. "
-                                            f"Available nodes: [{available_nodes_str}]. "
-                                            f"Please ensure all choice 'nextNode' values match existing node IDs."
+                                        if attempt < max_retries:
+                                            available_nodes_str = ', '.join([f"'{n}'" for n in sorted(node_ids)])
+                                            raise ValueError(
+                                                f"Choice in node '{node['id']}' references non-existent node '{choice['nextNode']}'. "
+                                                f"Available nodes: [{available_nodes_str}]. "
+                                                f"Please ensure all choice 'nextNode' values match existing node IDs."
+                                            )
+                                        fallback_node_id = pick_fallback_node_id(node['id'])
+                                        current_app.logger.warning(
+                                            "Repairing invalid nextNode reference on final attempt. "
+                                            "node_id=%s invalid_next=%s fallback=%s",
+                                            node['id'],
+                                            choice['nextNode'],
+                                            fallback_node_id
                                         )
+                                        choice['nextNode'] = fallback_node_id
                         
                         # If we got here, validation passed - break out of retry loop
                         break
