@@ -852,6 +852,10 @@ console.log('[Mind Map] Script loading...');
         layoutTransform = { scale, tx, ty };
 
         if (svgEl) {
+            svgEl.style.left = `${bounds.minX}px`;
+            svgEl.style.top = `${bounds.minY}px`;
+            svgEl.style.width = `${bounds.width}px`;
+            svgEl.style.height = `${bounds.height}px`;
             svgEl.setAttribute('viewBox', `${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`);
             svgEl.setAttribute('width', bounds.width.toString());
             svgEl.setAttribute('height', bounds.height.toString());
@@ -1482,78 +1486,66 @@ console.log('[Mind Map] Script loading...');
         
         const node = container.querySelector(`[data-node-id="${nodeId}"]`);
         if (!node) return null;
-        
-        // Get the SVG element for coordinate transformation
-        const svg = document.getElementById('mindmap-edges');
-        if (!svg) return null;
-        
-        // Get the actual anchor element if it exists
-        const anchor = node.querySelector(`[data-anchor-side="${anchorSide}"]`);
-        
-        // Get bounding rects - these account for all CSS transforms
-        const elementRect = anchor ? anchor.getBoundingClientRect() : node.getBoundingClientRect();
-        
-        // Calculate the point we want to connect to
-        let viewportX, viewportY;
-        
-        if (anchor) {
-            // Use anchor center
-            viewportX = elementRect.left + elementRect.width / 2;
-            viewportY = elementRect.top + elementRect.height / 2;
-        } else {
-            // Fallback: calculate from node edges
-            const nodeRect = node.getBoundingClientRect();
-            const nodeCenterX = nodeRect.left + nodeRect.width / 2;
-            const nodeCenterY = nodeRect.top + nodeRect.height / 2;
-            
-            switch(anchorSide) {
+
+        const centerX = parseFloat(node.style.left);
+        const centerY = parseFloat(node.style.top);
+        const scale = layoutTransform.scale || 1;
+        let width = node.offsetWidth;
+        let height = node.offsetHeight;
+
+        if ((!width || !height) && scale) {
+            const rect = node.getBoundingClientRect();
+            width = rect.width / scale;
+            height = rect.height / scale;
+        }
+
+        if (isFinite(centerX) && isFinite(centerY) && width && height) {
+            const halfW = width / 2;
+            const halfH = height / 2;
+            switch (anchorSide) {
                 case 'left':
-                    viewportX = nodeRect.left;
-                    viewportY = nodeCenterY;
-                    break;
+                    return { x: centerX - halfW, y: centerY };
                 case 'right':
-                    viewportX = nodeRect.right;
-                    viewportY = nodeCenterY;
-                    break;
+                    return { x: centerX + halfW, y: centerY };
                 case 'top':
-                    viewportX = nodeCenterX;
-                    viewportY = nodeRect.top;
-                    break;
+                    return { x: centerX, y: centerY - halfH };
                 case 'bottom':
-                    viewportX = nodeCenterX;
-                    viewportY = nodeRect.bottom;
-                    break;
+                    return { x: centerX, y: centerY + halfH };
                 default:
-                    viewportX = nodeCenterX;
-                    viewportY = nodeCenterY;
+                    return { x: centerX, y: centerY };
             }
         }
-        
-        // Convert viewport coordinates to SVG coordinates using SVG's built-in transformation
-        // This properly handles all CSS transforms on both the SVG and the DOM elements
-        try {
-            const svgPoint = svg.createSVGPoint();
-            svgPoint.x = viewportX;
-            svgPoint.y = viewportY;
-            
-            // Get the inverse of the screen CTM to convert from screen to SVG coordinates
-            const ctm = svg.getScreenCTM();
-            if (!ctm) {
-                // Fallback to manual calculation if getScreenCTM fails
-                return screenToWorld(viewportX - container.getBoundingClientRect().left, 
-                                    viewportY - container.getBoundingClientRect().top);
-            }
-            
-            const inverseCTM = ctm.inverse();
-            const svgCoords = svgPoint.matrixTransform(inverseCTM);
-            
-            return { x: svgCoords.x, y: svgCoords.y };
-        } catch (e) {
-            // Fallback to manual calculation if SVG transformation fails
-            console.warn('SVG coordinate transformation failed, using fallback:', e);
-            const containerRect = container.getBoundingClientRect();
-            return screenToWorld(viewportX - containerRect.left, viewportY - containerRect.top);
+
+        // Fallback to screen-based calculation if style values are missing
+        const containerRect = container.getBoundingClientRect();
+        const nodeRect = node.getBoundingClientRect();
+        const nodeCenterX = nodeRect.left + nodeRect.width / 2;
+        const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+        let viewportX = nodeCenterX;
+        let viewportY = nodeCenterY;
+
+        switch (anchorSide) {
+            case 'left':
+                viewportX = nodeRect.left;
+                viewportY = nodeCenterY;
+                break;
+            case 'right':
+                viewportX = nodeRect.right;
+                viewportY = nodeCenterY;
+                break;
+            case 'top':
+                viewportX = nodeCenterX;
+                viewportY = nodeRect.top;
+                break;
+            case 'bottom':
+                viewportX = nodeCenterX;
+                viewportY = nodeRect.bottom;
+                break;
+            default:
+                break;
         }
+
+        return screenToWorld(viewportX - containerRect.left, viewportY - containerRect.top);
     }
 
     /**
