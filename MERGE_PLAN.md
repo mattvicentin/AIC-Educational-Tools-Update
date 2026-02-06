@@ -1,7 +1,8 @@
-# Merge Plan: Chat Layout + Educational Tools
+# Update Plan: Chat Layout + Educational Tools (Into Live Railway Repo)
 
 ## Summary
-- Merge this repo into the live Railway repo via Git merge on an integration branch.
+- Treat this as a **production update**: the repos are mostly identical and share history, so we should integrate changes via a normal Git merge (no file-by-file patching).
+- Merge this repo/branch into the live Railway repo on an integration branch.
 - Resolve Alembic multiple heads and ensure quiz/flashcards/mindmap schemas are safe for Postgres.
 - Integrate chat layout + tool UI assets and backend blueprints/models.
 - Add CSRF headers for tool API fetches to avoid production CSRF failures.
@@ -29,22 +30,44 @@
   - `https://unpkg.com` for ELK.js in `templates/chat/view.html` and `src/app/__init__.py`
 
 ## Plan
-1. Create an integration branch in the live repo and confirm shared history.
+1. Prep the live repo (treat as an update; preserve the current working deploy).
+
+   Goals:
+   - Start from the exact code currently deployed/working on Railway.
+   - Create a rollback point before merging anything.
+   - Keep the diff strictly limited to the intended feature delta.
 
    Commands:
    ```bash
-   git checkout -b merge/chat-layout-edu-tools
+   git checkout main
+   git pull
+   git status -sb
+
+   # Optional but recommended: create a rollback point
+   git tag -a pre-edu-tools-update-YYYY-MM-DD -m "Pre chat-layout + edu tools update"
+
+   git checkout -b update/chat-layout-edu-tools
+   ```
+
+2. Add the feature repo/branch and sanity-check that this is truly an “update”.
+
+   Commands:
+   ```bash
    git remote add feature /path/to/this/repo
    git fetch feature
-   git merge-base HEAD feature/main
-   ```
-   If no merge-base is found, stop and revisit; the Git-merge path assumes shared history.
 
-2. Merge feature branch and resolve known conflict hot spots **without touching identical files**.
+   # Sanity checks: we expect a merge-base and a reasonable diff size
+   git merge-base HEAD feature/main
+   git diff --stat HEAD...feature/main
+   git diff --name-only HEAD...feature/main
+   ```
+   If there is **no merge-base** or the diff touches a large, unexpected surface area, stop. That usually means you’re merging the wrong branches or the live repo has drifted.
+
+3. Merge feature branch and resolve known conflict hot spots **without touching identical files**.
 
    Commands:
    ```bash
-   git merge feature/main
+   git merge --no-ff feature/main
    ```
    Likely conflicts:
    - `templates/chat/view.html`
@@ -53,7 +76,17 @@
    - `src/app/static/css/components.css`
    - `src/app/static/js/chat-view.js`
 
-3. Resolve Alembic multiple heads before running migrations.
+4. Confirm the post-merge diff only contains intended changes.
+
+   Commands:
+   ```bash
+   git status
+   git diff --name-status
+   git diff --check
+   ```
+   If you see unrelated changes (formatting, whitespace-only changes, or unexpected files), revert them before proceeding. The goal is: **only the intended feature delta** lands in production.
+
+5. Resolve Alembic multiple heads before running migrations.
 
    Required adjustment:
    - Keep one flashcard migration and remove the duplicate.
@@ -67,7 +100,7 @@
    ```
    Goal: a single head.
 
-4. Verify the quiz table exists before `afbd40f1e68c` runs in Postgres.
+6. Verify the quiz table exists before `afbd40f1e68c` runs in Postgres.
 
    Required adjustment (choose one):
    - Add a migration that creates `quiz` and `quiz_answer` tables if they don’t exist.
@@ -75,7 +108,7 @@
 
    Rationale: current migration adds a column and will fail if `quiz` doesn’t exist.
 
-5. Backend wiring checks.
+7. Backend wiring checks.
 
    Confirm these are merged and consistent:
    - Blueprint registration in `src/app/__init__.py`
@@ -84,7 +117,7 @@
    - CSP includes `https://unpkg.com` in `src/app/__init__.py`
    - Environment has `ANTHROPIC_API_KEY` set (already required by Library tool)
 
-6. Frontend wiring checks.
+8. Frontend wiring checks.
 
    Confirm these are merged and referenced:
    - `templates/chat/view.html` includes tool menu and panel includes
@@ -95,7 +128,7 @@
    - New assets in `src/app/static/js` and `src/app/static/css`
    - Cache-bust query strings in `templates/base.html` and `templates/chat/view.html` match updated assets
 
-7. Add CSRF headers to tool API fetches.
+9. Add CSRF headers to tool API fetches.
 
    Required adjustment:
    - Include `X-CSRFToken` (or `X-CSRF-Token`) header on JSON fetches in:
@@ -107,7 +140,7 @@
 
    This avoids 400 CSRF failures in production.
 
-8. Deploy with manual migrations (per selected strategy).
+10. Deploy with manual migrations (per selected strategy).
 
    Actions:
    - Set `RUN_DB_MIGRATIONS_ON_STARTUP=false` in Railway.
@@ -118,7 +151,7 @@
      ```
    - Verify `/ready` is green and no migration errors appear.
 
-9. Smoke test on staging or production.
+11. Smoke test on staging or production.
 
    Check:
    - Chat page renders new layout and sidebar accordions.
@@ -129,6 +162,11 @@
    - Narrative linear and interactive flows complete and send to chat.
    - Library document selection works inside tools.
    - No CSP or CSRF errors in console/network logs.
+
+## Rollback
+- If anything breaks after deploy:
+  - Redeploy the last known-good commit/tag (for example `pre-edu-tools-update-YYYY-MM-DD`).
+  - Keep `RUN_DB_MIGRATIONS_ON_STARTUP=false` and only apply migrations once you’re confident the code is stable.
 
 ## Test Cases and Scenarios
 - `GET /health` returns 200.
