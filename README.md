@@ -124,6 +124,34 @@ AI Collab Online is an **intelligent learning platform** that creates adaptive, 
 - **Google Docs integration** for document analysis and import
 - **Pin-aware AI responses** - Pin-seeded chats maintain full pin context throughout the conversation
 
+### 🎓 **Educational Tools**
+- **In-chat tool launcher**: Quiz, Flashcards, Mind Map, and Narrative are available directly from the chat composer `+` menu
+- **Context-aware generation**: Tools can use `chat`, `library`, or `both` context modes (with room-level access controls)
+
+#### ✅ **Quiz Tool**
+- **Configurable assessments**: Generate quizzes with 1-20 questions
+- **Difficulty controls**: `easy`, `average`, `hard`, or `mixed`
+- **Auto-grading + explanations**: Instant score and per-question rationale
+- **Chat integration**: Send quiz results back to the conversation for discussion
+
+#### 🗂️ **Flashcards Tool**
+- **Two study modes**: `grid` and `single card`
+- **Grid layouts**: `1x2`, `2x2`, `2x3`, `3x3`
+- **Generate-more flow**: Produces additional cards with duplicate-avoidance logic
+- **Library-backed study**: Supports document-based flashcard generation
+
+#### 🧠 **Mind Map Tool**
+- **Hierarchical concept maps**: Generates root, branches, and sub-branches from learning context
+- **Size controls**: `small`, `medium`, `large`
+- **Node explanations**: Each node includes concise explanatory content
+- **Export + share**: Export maps and send outputs back into chat
+
+#### 📖 **Narrative Tool**
+- **Narrative modes**: `linear` and `interactive`
+- **Interactive complexity levels**: `explanation`, `simulation`, `challenge`
+- **Reflection workflow**: Built-in reflection and formative feedback stages
+- **Chat handoff**: Send completed narrative outcomes into the room conversation
+
 ### 📊 **Analytics & Administration**
 - **Learning progression tracking** with automatic note generation analytics
 - **Comprehensive user analytics** with CSV export capabilities
@@ -543,4 +571,3 @@ Collab_AI_Online/
 - **Clean console**: All accessibility and integration issues resolved
 
 See `docs/SESSION-SUMMARY-2025-10-28.md` and `docs/PHASE3-tool-header-alignment.md` for complete details.
-
