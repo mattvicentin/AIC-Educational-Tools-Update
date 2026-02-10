@@ -1,17 +1,44 @@
-# Update Plan: Chat Layout + Educational Tools (Into Live Railway Repo)
+# Update Plan: Chat Layout + Educational Tools (Live Railway Repo)
 
 ## Summary
-- Treat this as a **production update**: the repos are mostly identical and share history, so we should integrate changes via a normal Git merge (no file-by-file patching).
-- Merge this repo/branch into the live Railway repo on an integration branch.
-- Resolve Alembic multiple heads and ensure quiz/flashcards/mindmap schemas are safe for Postgres.
-- Integrate chat layout + tool UI assets and backend blueprints/models.
-- Add CSRF headers for tool API fetches to avoid production CSRF failures.
-- Deploy with manual migrations, then run targeted smoke tests.
+- Treat this as a normal update, not a repo transplant.
+- Use a shared remote branch workflow across both laptops.
+- Enforce strict file-delta discipline so identical files remain untouched.
+- Reconcile Alembic heads safely without deleting revision files.
+- Deploy with manual migrations and verify with targeted smoke tests.
 
-## Precaution: Preserve Matching Files
-- Because the two repos are largely identical, **any file that is identical between repos should be left untouched** (no edits, no reformatting, no changes in whitespace).
-- During merge conflict resolution, always prefer the **current online version** for files that are functionally the same, and only apply changes where this repo clearly introduces new behavior or fixes.
-- Use `git diff`/`git status` and conflict tools to confirm that only intended files are modified.
+## Two-Remote Model (Two Laptops)
+1. Laptop A (source machine with latest feature work):
+   ```bash
+   git checkout update/chat-layout-edu-tools
+   git push -u tools update/chat-layout-edu-tools
+   ```
+2. Laptop B (live/implementation machine used by Cursor):
+   ```bash
+   git remote add live <LIVE_REPO_URL>
+   git remote add tools <TOOLS_REPO_URL>
+   git fetch live
+   git fetch tools
+   ```
+3. Branch roles:
+- `live/*` is the production merge target and deployment source.
+- `tools/*` contains feature updates prepared for merge.
+
+This removes local-path remotes and ensures cross-machine consistency.
+
+## Cursor Safety Rails (Must Follow)
+- Only modify files required for the feature delta.
+- Do not run repo-wide formatters.
+- No whitespace-only edits.
+- No renames unless explicitly required.
+- Do not edit files that are functionally unchanged.
+- Every change must map to a checklist item, failing behavior, or failing test.
+- After each Cursor iteration, run:
+  ```bash
+  git diff --stat
+  git diff --name-only
+  git diff
+  ```
 
 ## Public API/Schema Changes
 - New API routes:
@@ -26,57 +53,47 @@
   - `quiz`, `quiz_answer`, `flashcard_set`, `flashcard_session`, `mindmap`
 - Schema change:
   - `quiz.difficulty` column (default `average`)
-- CSP dependency:
-  - `https://unpkg.com` for ELK.js in `templates/chat/view.html` and `src/app/__init__.py`
+- Frontend asset dependency:
+  - ELK.js for mind map layout
 
 ## Plan
-1. Prep the live repo (treat as an update; preserve the current working deploy).
-
-   Goals:
-   - Start from the exact code currently deployed/working on Railway.
-   - Create a rollback point before merging anything.
-   - Keep the diff strictly limited to the intended feature delta.
+1. Prepare the live repo and create rollback safety.
 
    Commands:
    ```bash
-   git checkout main
-   git pull
+   git checkout -b integration/edu-tools-update live/main
+   git config rerere.enabled true
    git status -sb
-
-   # Optional but recommended: create a rollback point
    git tag -a pre-edu-tools-update-YYYY-MM-DD -m "Pre chat-layout + edu tools update"
-
-   git checkout -b update/chat-layout-edu-tools
    ```
 
-2. Add the feature repo/branch and sanity-check that this is truly an “update”.
+2. Pull the shared feature branch and verify expected update scope.
 
    Commands:
    ```bash
-   git remote add feature /path/to/this/repo
-   git fetch feature
-
-   # Sanity checks: we expect a merge-base and a reasonable diff size
-   git merge-base HEAD feature/main
-   git diff --stat HEAD...feature/main
-   git diff --name-only HEAD...feature/main
+   git fetch live
+   git fetch tools
+   git merge-base live/main tools/update/chat-layout-edu-tools
+   git diff --stat live/main...tools/update/chat-layout-edu-tools
+   git diff --name-only live/main...tools/update/chat-layout-edu-tools
    ```
-   If there is **no merge-base** or the diff touches a large, unexpected surface area, stop. That usually means you’re merging the wrong branches or the live repo has drifted.
+   If merge-base is missing, do not use a normal merge. Use a controlled cherry-pick/replay flow instead.
+   If changed files are unexpectedly broad, stop and resolve branch mismatch before merging.
 
-3. Merge feature branch and resolve known conflict hot spots **without touching identical files**.
+3. Merge feature work into the integration branch.
 
    Commands:
    ```bash
-   git merge --no-ff feature/main
+   git merge --no-ff tools/update/chat-layout-edu-tools
    ```
-   Likely conflicts:
+   Expected conflict hotspots:
    - `templates/chat/view.html`
    - `templates/base.html`
    - `src/app/__init__.py`
    - `src/app/static/css/components.css`
    - `src/app/static/js/chat-view.js`
 
-4. Confirm the post-merge diff only contains intended changes.
+4. Enforce delta-only conflict resolution.
 
    Commands:
    ```bash
@@ -84,103 +101,120 @@
    git diff --name-status
    git diff --check
    ```
-   If you see unrelated changes (formatting, whitespace-only changes, or unexpected files), revert them before proceeding. The goal is: **only the intended feature delta** lands in production.
+   Keep the online version when files are functionally identical.
 
-5. Resolve Alembic multiple heads before running migrations.
-
-   Required adjustment:
-   - Keep one flashcard migration and remove the duplicate.
-   - Recommended: keep `migrations/versions/cd2345678901_add_flashcard_tables.py`, remove `migrations/versions/bc1234567890_add_flashcard_tables.py`.
-   - Confirm `migrations/versions/de3456789012_add_mindmap_table.py` points to the kept flashcard revision.
+5. Reconcile Alembic heads safely (no revision deletion).
 
    Commands:
    ```bash
    alembic heads
    alembic history --verbose
+   alembic current
    ```
-   Goal: a single head.
+   Required actions:
+   - Do not delete existing migration files as a first option.
+   - For duplicate flashcard revisions (`bc1234567890` and `cd2345678901`), convert migration logic to idempotent table-existence checks so both paths are safe.
+   - If multiple heads remain, create a merge revision:
+     ```bash
+     alembic merge -m "merge flashcard heads" <head_a> <head_b>
+     ```
+   - Re-run `alembic heads` and confirm a single head in code.
 
-6. Verify the quiz table exists before `afbd40f1e68c` runs in Postgres.
+6. Make `quiz` migration path safe for all environments.
 
-   Required adjustment (choose one):
-   - Add a migration that creates `quiz` and `quiz_answer` tables if they don’t exist.
-   - Or update `migrations/versions/afbd40f1e68c_add_difficulty_to_quiz.py` to no-op safely if `quiz` table is missing in Postgres.
+   Required actions:
+   - Ensure `quiz` and `quiz_answer` creation exists before `afbd40f1e68c_add_difficulty_to_quiz.py`, or make `afbd40f1e68c` safely no-op if `quiz` is absent.
+   - Validate both fresh DB migration and upgrade-from-live behavior.
 
-   Rationale: current migration adds a column and will fail if `quiz` doesn’t exist.
+7. Standardize CSRF handling with shared JS helper.
 
-7. Backend wiring checks.
-
-   Confirm these are merged and consistent:
-   - Blueprint registration in `src/app/__init__.py`
-   - Model imports in `src/models/__init__.py`
-   - New blueprints in `src/app/quiz`, `src/app/flashcards`, `src/app/mindmap`, `src/app/narrative`
-   - CSP includes `https://unpkg.com` in `src/app/__init__.py`
-   - Environment has `ANTHROPIC_API_KEY` set (already required by Library tool)
-
-8. Frontend wiring checks.
-
-   Confirm these are merged and referenced:
-   - `templates/chat/view.html` includes tool menu and panel includes
-   - `templates/components/quiz/quiz_panel.html`
-   - `templates/components/flashcards/flashcards_panel.html`
-   - `templates/components/mindmap/mindmap_panel.html`
-   - `templates/components/narrative/narrative_panel.html`
-   - New assets in `src/app/static/js` and `src/app/static/css`
-   - Cache-bust query strings in `templates/base.html` and `templates/chat/view.html` match updated assets
-
-9. Add CSRF headers to tool API fetches.
-
-   Required adjustment:
-   - Include `X-CSRFToken` (or `X-CSRF-Token`) header on JSON fetches in:
+   Required actions:
+   - Add one shared helper module (for example `src/app/static/js/tool-api.js`) with:
+     - `getCsrfToken()`
+     - `jsonFetch(url, payload, options)` that always adds `X-CSRFToken`
+   - Refactor:
      - `src/app/static/js/quiz-tool.js`
      - `src/app/static/js/flashcards-tool.js`
      - `src/app/static/js/mindmap-tool.js`
      - `src/app/static/js/narrative-tool.js`
-   - Use the existing meta tag `csrf-token` from `templates/base.html` as the source.
+   - Remove duplicated per-file CSRF logic.
 
-   This avoids 400 CSRF failures in production.
+8. Make ELK.js production-safe.
 
-10. Deploy with manual migrations (per selected strategy).
+   Preferred action:
+   - Vendor `elk.bundled.js` into static assets (for example `src/app/static/vendor/elk.bundled.js`) and load locally from template.
+   Fallback:
+   - Keep pinned CDN URL only if vendoring is blocked, and keep CSP narrowly scoped.
+
+9. Validate backend/frontend wiring after merge.
+
+   Backend checks:
+   - `src/app/__init__.py` blueprint registration for quiz/flashcards/mindmap/narrative
+   - `src/models/__init__.py` model imports
+   - Runtime env includes `ANTHROPIC_API_KEY`
+
+   Frontend checks:
+   - `templates/chat/view.html` tool menu + panel includes
+   - `templates/components/quiz/quiz_panel.html`
+   - `templates/components/flashcards/flashcards_panel.html`
+   - `templates/components/mindmap/mindmap_panel.html`
+   - `templates/components/narrative/narrative_panel.html`
+   - Cache-busting query strings are updated for changed assets
+
+10. Use PR gate even for solo merge.
+
+   Commands:
+   ```bash
+   git push -u live integration/edu-tools-update
+   ```
+   Required action:
+   - Open PR `integration/edu-tools-update -> main` in the `live` repository.
+   - Review file list and diff size before merge.
+   - Merge only after smoke tests pass.
+
+11. Deploy with manual migrations.
 
    Actions:
    - Set `RUN_DB_MIGRATIONS_ON_STARTUP=false` in Railway.
-   - Deploy code.
+   - Deploy merged code.
    - Run:
      ```bash
      railway run alembic upgrade head
      ```
-   - Verify `/ready` is green and no migration errors appear.
+   - Verify `/ready` reports ready status and no migration errors.
 
-11. Smoke test on staging or production.
+12. Execute smoke tests in production (or staging first if available).
 
-   Check:
-   - Chat page renders new layout and sidebar accordions.
-   - Tools menu opens and each tool works end-to-end.
-   - Quiz grades and sends results to chat.
-   - Flashcards generate and “Generate More” works.
-   - Mind map renders with ELK and exports.
+   Checks:
+   - Chat page renders new layout and sidebar behavior.
+   - Tools menu opens and each tool completes end-to-end flow.
+   - Quiz can generate, grade, and send results to chat.
+   - Flashcards can generate and "Generate More" works.
+   - Mind map renders and exports.
    - Narrative linear and interactive flows complete and send to chat.
-   - Library document selection works inside tools.
-   - No CSP or CSRF errors in console/network logs.
+   - Library document selection works in all tools.
+   - No CSP, CSRF, or static-asset console/network errors.
 
 ## Rollback
-- If anything breaks after deploy:
-  - Redeploy the last known-good commit/tag (for example `pre-edu-tools-update-YYYY-MM-DD`).
-  - Keep `RUN_DB_MIGRATIONS_ON_STARTUP=false` and only apply migrations once you’re confident the code is stable.
+- If deployment regresses:
+  - Redeploy `pre-edu-tools-update-YYYY-MM-DD` tag or last known good commit.
+  - Keep `RUN_DB_MIGRATIONS_ON_STARTUP=false`.
+  - Re-run migration plan only after root cause is identified.
 
 ## Test Cases and Scenarios
-- `GET /health` returns 200.
-- `GET /ready` returns `"status": "ready"` after migration.
-- `POST /api/quiz/generate` with `chat_id` and `context_mode=chat` succeeds.
-- `POST /api/flashcards/generate` returns cards and session info.
-- `POST /api/mindmap/generate` returns `mind_map_data`.
-- `POST /api/narrative/generate` returns linear and interactive responses.
-- Tool UI closes properly on escape and backdrop.
-- No 404s for new static assets.
+- `GET /health` returns `200`.
+- `GET /ready` returns `"status": "ready"` after deploy + migrations.
+- `POST /api/quiz/generate` succeeds with `chat_id` + `context_mode=chat`.
+- `POST /api/flashcards/generate` returns cards and session/cursor data.
+- `POST /api/mindmap/generate` returns valid `mind_map_data`.
+- `POST /api/narrative/generate` returns valid linear and interactive payloads.
+- Tool panels open/close correctly (escape, backdrop, toolbar trigger).
+- No missing static assets (`404`) for new JS/CSS/vendor files.
 
 ## Assumptions and Defaults
-- Shared Git history exists between this repo and the live repo.
-- Manual migrations are used on Railway for this deployment.
-- Tools are fully enabled in UI (no feature flag).
-- `ANTHROPIC_API_KEY` is available in production.
-- CSP allows `https://unpkg.com` for ELK.js.
+- `live` remote points to the production/online repository.
+- `tools` remote points to `AIC-Educational-Tools-Update`.
+- Feature branch name is `update/chat-layout-edu-tools`.
+- Integration branch name is `integration/edu-tools-update`.
+- Manual migrations are required on Railway for this rollout.
+- ELK.js will be served locally unless blocked by deployment constraints.
